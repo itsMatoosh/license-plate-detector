@@ -154,8 +154,10 @@ def canny(image: np.ndarray, size, sigma, lower, upper):
 
 def edge_detection(image: np.ndarray):
     """Detects edges in the given image."""
-    lower = np.median(image)
-    upper = min(lower + np.std(image), 255)
+    lower = max(np.median(image) - 1.3 * np.std(image), 0)
+    upper = min(lower + np.std(image) / 6, 255)
+    print(lower)
+    print(upper)
     kernel_size = 5
     sigma = kernel_size // 3
     return canny(image, kernel_size, sigma, lower, upper)

@@ -24,14 +24,18 @@ def CaptureFrame_Process(file_path, sample_frequency, save_path):
     vid = cv2.VideoCapture(file_path)
 
     # sample frames from the video and localize them
-    fps = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = int(vid.get(cv2.CAP_PROP_FPS))
     sample_period = int((1 / sample_frequency) * fps)
     i = 0
+    print('Localizing license plate in video. FPS: ' + str(fps) + ', Sampling every ' + str(sample_period) + ' frames')
     localized_plates = []
     while vid.isOpened():
         ret, frame = vid.read()
-        if ret and i % sample_period == 0:
-            localized_plates.append(Localization.plate_detection(frame))
+        if ret:
+            if (i % sample_period) == 0:
+                localized_plates.append(Localization.plate_detection(frame))
+            else:
+                i += 1
         else:
             break
     vid.release()
