@@ -1,3 +1,5 @@
+import math
+
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
@@ -173,7 +175,7 @@ def edge_detection(image: np.ndarray):
     return morphology_close(canny(image, kernel_size, sigma, lower, upper))
 
 
-def hough_accumulator(edge_img):
+def hough_accumulator(edge_img, r_dim, theta_dim, x_max, y_max, theta_min, theta_max, r_min, r_max):
     """
     Input:
     img : 2D list - represents the edges of the image that we want to extract the lines from
@@ -182,27 +184,49 @@ def hough_accumulator(edge_img):
     """
 
     # Creating the Hough Accumulator
-    houghAccumulator = np.zeros((rDim, thetaDim))
+    accumulator = np.zeros((r_dim, theta_dim))
 
     # Implement the main loop/s for caclucating the result of the accumulator
-    for x in range(xMax):
-        for y in range(yMax):
+    for x in range(x_max):
+        for y in range(y_max):
             # If pixel is empty, continue
             if edge_img[x, y] == 0:
                 continue
 
             # Else loop through all possible thetas and compute the accumulator
-            step_amt = (thetaMax - thetaMin) / thetaDim
-            for theta_step in range(thetaDim):
-                theta = thetaMin + step_amt * theta_step
+            step_amt = (theta_max - theta_min) / theta_dim
+            for theta_step in range(theta_dim):
+                theta = theta_min + step_amt * theta_step
                 r = y * np.cos(theta) + x * np.sin(theta)
-                houghAccumulator[int((r + rMax) / (2 * rMax) * rDim), theta_step] += 1
+                accumulator[int((r + r_max) / (2 * r_max) * r_dim), theta_step] += 1
 
-    return houghAccumulator
+    return accumulator
 
 
-def hough_transform(image: np.ndarray):
-    pass
+def hough_transform(edge_image: np.ndarray):
+    """Computes the hough transform of an image.
+    Input must be an edge image."""
+    # Getting image dimensions
+    img_shape = edge_image.shape
+    x_max = img_shape[0]
+    y_max = img_shape[1]
+
+    # Setting angle boundaries
+    theta_max = 1.0 * math.pi
+    theta_min = 0 * math.pi
+
+    # Setting rho boundaries
+    r_min = 0.0
+    r_max = math.hypot(x_max, y_max)
+
+    # Setting step ranges- Quantization of parameter space (you can try different values here)
+    r_dim = 180
+    theta_dim = 180
+
+    # compute hough accumulator
+    h_accumulator = hough_accumulator(edge_image, r_dim, theta_dim, x_max, y_max, theta_min, theta_max, r_min, r_max)
+
+    return h_accumulator
 
 
 def plate_detection(image: np.ndarray):
@@ -210,11 +234,11 @@ def plate_detection(image: np.ndarray):
     # detect edges on image
     image_edges = edge_detection(image)
 
-    plt.imshow(image_edges, cmap='gray')
-    plt.show()
-
     # perform hough transform on image
-    image_hough = None
+    image_hough = hough_transform(image_edges)
+
+    plt.imshow(image_hough, cmap='gray')
+    plt.show()
 
     plate_imgs = []
     return plate_imgs
