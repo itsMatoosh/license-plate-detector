@@ -17,5 +17,18 @@ Inputs:(three)
 	3. save_path: final .csv file path
 Output: None
 """
+
+
 def CaptureFrame_Process(file_path, sample_frequency, save_path):
+    # read every video frame
+    vid = cv2.VideoCapture(file_path)
+    localizations = []
+    while vid.isOpened():
+        ret, frame = vid.read()
+        if ret:
+            localizations.append(localize(frame))
+        else:
+            break
+    vid.release()
+
     pass

@@ -16,7 +16,18 @@ Hints:
 	1. You may need to define other functions, such as crop and adjust function
 	2. You may need to define two ways for localizing plates(yellow or other colors)
 """
-def plate_detection(image):
-    #Replace the below lines with your code.
+
+
+def preprocess(image: np.ndarray):
+    """Preprocesses an image before localization."""
+
+
+def localize_plate(image: np.ndarray):
+    """Localizes a license plate from an image."""
+
+
+def plate_detection(image: np.ndarray):
+    """Performs localization on the given image"""
+    # Replace the below lines with your code.
     plate_imgs = image
     return plate_imgs
