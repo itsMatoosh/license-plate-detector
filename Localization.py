@@ -152,15 +152,25 @@ def canny(image: np.ndarray, size, sigma, lower, upper):
     return np.uint8(result)
 
 
+def morphology_close(image: np.ndarray):
+    """Performs the morphological close operation on an image."""
+    structuring_element = np.array([
+        [0, 1, 0],
+        [1, 1, 1],
+        [0, 1, 0]
+    ], dtype=np.uint8)
+    img_dilated = cv2.dilate(image, structuring_element)
+    return cv2.erode(img_dilated, structuring_element)
+
+
 def edge_detection(image: np.ndarray):
     """Detects edges in the given image."""
-    lower = max(np.median(image) - 1.3 * np.std(image), 0)
-    upper = min(lower + np.std(image) / 6, 255)
-    print(lower)
-    print(upper)
+    std = np.std(image)
+    lower = max(np.median(image) - std, 0)
+    upper = min(lower + std / 6, 255)
     kernel_size = 5
     sigma = kernel_size // 3
-    return canny(image, kernel_size, sigma, lower, upper)
+    return morphology_close(canny(image, kernel_size, sigma, lower, upper))
 
 
 def hough_accumulator(edge_img):
