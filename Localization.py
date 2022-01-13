@@ -212,13 +212,13 @@ def hough_accumulator(edge_img, r_dim, theta_dim, theta_min, theta_max, r_min, r
 # Output:
 # theta : list - contains all horizontal coordinates of the local extremas that were found
 # rho : list - contains all vertical coordinates of the local extremas that were found
-def find_interest_points(hough_accumulator, neighborhood_size, threshold):
+def find_interest_points(h_accumulator, neighborhood_size, threshold):
     # Find local maximas
-    data_max = filters.maximum_filter(hough_accumulator, neighborhood_size)
-    maxima = (hough_accumulator == data_max)
+    data_max = filters.maximum_filter(h_accumulator, neighborhood_size)
+    maxima = (h_accumulator == data_max)
 
     # Find local minimas
-    data_min = filters.minimum_filter(hough_accumulator, neighborhood_size)
+    data_min = filters.minimum_filter(h_accumulator, neighborhood_size)
 
     # Preserve difference between max and min only if it is greater than the threshold
     diff = ((data_max - data_min) > threshold)
@@ -359,7 +359,7 @@ def hough_pipeline(edge_image: np.ndarray):
     # Using subplots to be able to plot the lines above it
     fig, ax = plt.subplots()
     plt.figure(figsize=(20, 10))
-    ax.imshow(edge_image)
+    ax.imshow(edge_image, cmap='gray')
 
     for line in lines:
         ax.plot([point[0] for point in line], [point[1] for point in line], linewidth=3)
