@@ -3,6 +3,8 @@ import math
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.ndimage as ndimage
+import scipy.ndimage.filters as filters
 
 """
     In this file, you need to define plate_detection function.
@@ -175,7 +177,7 @@ def edge_detection(image: np.ndarray):
     return morphology_close(canny(image, kernel_size, sigma, lower, upper))
 
 
-def hough_accumulator(edge_img, r_dim, theta_dim, x_max, y_max, theta_min, theta_max, r_min, r_max):
+def hough_accumulator(edge_img, r_dim, theta_dim, theta_min, theta_max, r_min, r_max):
     """
     Input:
     img : 2D list - represents the edges of the image that we want to extract the lines from
@@ -187,8 +189,8 @@ def hough_accumulator(edge_img, r_dim, theta_dim, x_max, y_max, theta_min, theta
     accumulator = np.zeros((r_dim, theta_dim))
 
     # Implement the main loop/s for caclucating the result of the accumulator
-    for x in range(x_max):
-        for y in range(y_max):
+    for x in range(r_dim):
+        for y in range(r_dim):
             # If pixel is empty, continue
             if edge_img[x, y] == 0:
                 continue
@@ -203,7 +205,126 @@ def hough_accumulator(edge_img, r_dim, theta_dim, x_max, y_max, theta_min, theta
     return accumulator
 
 
-def hough_transform(edge_image: np.ndarray):
+# Input:
+# houghAccumulator : 2D list - represents the houghAccumulator
+# neighborhoodSize : int - represent the size of the neighbours to consider
+# threshold: int - represent the minimum difference between the maxima and minima for the window to be considered
+# Output:
+# theta : list - contains all horizontal coordinates of the local extremas that were found
+# rho : list - contains all vertical coordinates of the local extremas that were found
+def find_interest_points(hough_accumulator, neighborhood_size, threshold):
+    # Find local maximas
+    data_max = filters.maximum_filter(hough_accumulator, neighborhood_size)
+    maxima = (hough_accumulator == data_max)
+
+    # Find local minimas
+    data_min = filters.minimum_filter(hough_accumulator, neighborhood_size)
+
+    # Preserve difference between max and min only if it is greater than the threshold
+    diff = ((data_max - data_min) > threshold)
+    maxima[diff == 0] = 0
+
+    # Identify the maxima regions in the image.
+    labeled, num_objects = ndimage.label(maxima)
+    slices = ndimage.find_objects(labeled)
+
+    # Calculate the central point of the maxima regions
+    theta, rho = [], []
+    for dy, dx in slices:
+        # Append the central x coordinate to theta
+        # Here you can get the starting horizontal coordinate with dx.start and ending point with dx.stop
+        theta.append((dx.start + dx.stop) / 2)
+
+        # Append the central y coordinate to rho
+        # Here you can get the starting vertical coordinate with dy.start and ending point with dy.stop
+        rho.append((dy.start + dy.stop) / 2)
+
+    return theta, rho
+
+
+# Input:
+# theta : list - represents horizontal coordinate of local extremas
+# rho : list - represents vertical coordinate of loacl extremas
+# Output:
+# lines : list - contains lists of points thar represent all the points a specific line traverses
+def get_lines(h_accumulator, theta, rho, r_dim, theta_dim, theta_max, theta_min, r_max):
+    # Array to contain all the lines
+    lines = []
+
+    # Iterate over you previous results and extract the lines that were chosen
+    for i in range(len(theta)):
+        # get rho and theta for this line
+        step_amt = (theta_max - theta_min) / theta_dim
+        t = theta_min + step_amt * theta[i]
+        r = rho[i] / r_dim * (2 * r_max) - r_max
+
+        # go through each pixel
+        points = []
+        for y in range(r_dim):
+            x = int((-y * np.cos(t) + r) / np.sin(t))
+            if 0 <= x < r_dim:
+                if h_accumulator[y, x] != 0:
+                    points.append([y, x])
+
+        # add to lines
+        lines.append(points)
+
+    return lines
+
+
+# Input:
+# line1 : list - contains 2 points, the starting point at index 0 and the ending point at index 1
+# line2 : list - contains 2 points, the starting point at index 0 and the ending point at index 1
+# Output:
+# x, y : int, int - coordinates of the intersection between the two lines. -1, -1 if no intersection was found
+def line_intersection(line1, line2):
+    # get first and last points
+    p_low_1 = line1[0]
+    p_high_1 = line1[-1]
+    p_low_2 = line2[0]
+    p_high_2 = line2[-1]
+
+    # check div by 0
+    if p_high_1[0] - p_low_1[0] == 0 or p_high_2[0] - p_low_2[0] == 0:
+        return -1, -1
+
+    # get slopes of both lines
+    m1 = (p_high_1[1] - p_low_1[1]) / (p_high_1[0] - p_low_1[0])
+    m2 = (p_high_2[1] - p_low_2[1]) / (p_high_2[0] - p_low_2[0])
+
+    # get intersection point x and y
+    x = (p_low_2[1] - p_low_1[1] + m1 * p_low_1[0] - m2 * p_low_2[0]) / (m1 - m2)
+
+    # check bounds
+    if x < p_low_1[0] or x > p_high_1[0] or x < p_low_2[0] or x > p_high_2[0]:
+        return -1, -1
+
+    y = m1 * (x - p_low_1[0]) + p_low_1[1]
+
+    return int(x), int(y)
+
+
+def find_intersections(lines, x_max, y_max):
+    intersectionsX = []
+    intersectionsY = []
+
+    for l1 in lines:
+        for l2 in lines:
+            if (l1 != l2 and l1 != [] and l2 != []):
+                A = [l1[0][0], l1[0][1]]
+                B = [l1[-1][0], l1[-1][1]]
+                C = [l2[0][0], l2[0][1]]
+                D = [l2[-1][0], l2[-1][1]]
+
+                intersect = line_intersection((A, B), (C, D))
+
+                if (intersect[0] >= 0 and intersect[1] >= 0 and intersect[0] <= x_max and intersect[1] <= y_max):
+                    intersectionsX.append(intersect[0])
+                    intersectionsY.append(intersect[1])
+    return intersectionsX, intersectionsY
+
+
+def hough_pipeline(edge_image: np.ndarray):
     """Computes the hough transform of an image.
     Input must be an edge image."""
     # Getting image dimensions
@@ -224,7 +345,37 @@ def hough_transform(edge_image: np.ndarray):
     theta_dim = 180
 
     # compute hough accumulator
-    h_accumulator = hough_accumulator(edge_image, r_dim, theta_dim, x_max, y_max, theta_min, theta_max, r_min, r_max)
+    h_accumulator = hough_accumulator(edge_image, r_dim, theta_dim, theta_min, theta_max, r_min, r_max)
+
+    # find interest points in the accumulator
+    neighborhood_size = 8
+    threshold = 200
+    theta, rho = find_interest_points(h_accumulator, neighborhood_size, threshold)
+
+    # find lines in the image
+    lines = get_lines(h_accumulator, theta, rho, r_dim, theta_dim, theta_max, theta_min, r_max)
+
+    # Plot the original image
+    # Using subplots to be able to plot the lines above it
+    fig, ax = plt.subplots()
+    plt.figure(figsize=(20, 10))
+    ax.imshow(edge_image)
+
+    for line in lines:
+        ax.plot([point[0] for point in line], [point[1] for point in line], linewidth=3)
+
+    # Showing the final plot with all the lines
+    plt.show()
+
+    # find intersections between lines
+    inter_x, inter_y = find_intersections(lines, x_max, y_max)
+
+    # Plot the result
+    plt.figure(figsize=(10, 10))
+    plt.imshow(edge_image)
+    plt.plot(inter_x, inter_y, 'ro')
+    plt.title('Normal Space')
+    plt.show()
 
     return h_accumulator
 
@@ -235,7 +386,7 @@ def plate_detection(image: np.ndarray):
     image_edges = edge_detection(image)
 
     # perform hough transform on image
-    image_hough = hough_transform(image_edges)
+    image_hough = hough_pipeline(image_edges)
 
     plt.imshow(image_hough, cmap='gray')
     plt.show()
