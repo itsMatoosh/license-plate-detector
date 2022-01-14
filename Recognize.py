@@ -41,6 +41,22 @@ def compare_euclidean_norm(a, b):
 
 
 def NN_SIFT_classifier(image, database):
+    # crop image to remove 0s around
+    nonzero = np.argwhere(image > 200)[:, 0]
+    y_start = np.min(nonzero)
+    y_end = np.max(nonzero)
+    image = image[y_start:y_end+1]
+
+    # resize to be height 85
+    new_h = 85
+    scale = new_h / image.shape[0]
+    new_w = int(image.shape[1] * scale)
+    image = cv2.resize(image, (new_w, new_h))
+
+    # adjust to be the same size as database picture
+    canvas = np.zeros((85, 100))
+    canvas[:, 0:new_w] = image
+
     distance = {}
     # Implement the nearest neighbor classifier
 
@@ -51,7 +67,7 @@ def NN_SIFT_classifier(image, database):
     # image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     # Steps: 3- resize the image if needed to fit the training set
-    image = cv2.resize(image, (16, 16))
+    image = cv2.resize(canvas, (16, 16))
 
     # Steps: 4- find the SIFT descriptor of the test image
     sift = sift_descriptor(image)
