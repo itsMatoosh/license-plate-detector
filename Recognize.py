@@ -50,7 +50,7 @@ def NN_SIFT_classifier(image, database):
     # TODO: Steps: 5- Measure the similarity between the test image descriptor & all the database images' descriptors
     for key in database.keys():
         other_sift = database[key]
-        distance[key] = compare_euclidean_norm(sift, other_sift)
+        distance[key] = np.linalg.norm(sift - other_sift)
     
     # TODO: Steps: 6- Sort the labels based on the similarity  
     distance = dict(sorted(distance.items(), key=lambda item: item[1]))
@@ -112,22 +112,22 @@ def segment_and_recognize(plate_imgs):
     res = []
     for fname in os.listdir("data/SameSizeLetters"):
         if fname.endswith('.png') or fname.endswith('.jpg') or fname.endswith('.bmp'):
-            image = cv2.imread("data/SameSizeLetters" + fname)
+            image = cv2.imread("data/SameSizeLetters/" + fname)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             image = cv2.resize(image, (16, 16))
             sift = sift_descriptor(image)
-            database[filename] = sift
+            database[fname] = sift
     
     for fname in os.listdir("data/SameSizeNumbers"):
         if fname.endswith('.png') or fname.endswith('.jpg') or fname.endswith('.bmp'):
-            image = cv2.imread("data/SameSizeNumbers" + fname)
+            image = cv2.imread("data/SameSizeNumbers/" + fname)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             image = cv2.resize(image, (16, 16))
             sift = sift_descriptor(image)
-            database[filename] = sift
+            database[fname] = sift
             
     # TODO: Segment image and run NN_Sift_Classifier on each character
-    
+    print(database)
     for image in plate_imgs:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         thresh = isodata_thresholding(gray)
@@ -156,3 +156,9 @@ def segment_and_recognize(plate_imgs):
         res.append(matches)
     
     return res
+    
+
+img = cv2.imread("plate.png")
+images = []
+images.append(img)
+print(segment_and_recognize(images))
