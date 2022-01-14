@@ -39,6 +39,7 @@ def CaptureFrame_Process(file_path, sample_frequency, save_path):
         else:
             break
     vid.release()
+    cv2.destroyAllWindows()
 
     # recognize localized plates
     recognized_plates = Recognize.segment_and_recognize(localized_plates)
