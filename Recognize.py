@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import os
 import scipy
+import matplotlib.pyplot as plt
 
 from tools import gradient
 
@@ -63,6 +64,7 @@ def NN_SIFT_classifier(image, database):
     distance = dict(sorted(distance.items(), key=lambda x: x[1]))
 
     # Steps: 7- print the label & the distances of the sorted list
+    print("new char")
     for key in distance:
         print(key + ": " + str(distance[key]))
 
@@ -95,7 +97,7 @@ def isodata_thresholding(image, epsilon = 2):
     
     #TODO Threshold the image based on last tau
     ret, foreground = cv2.threshold(image, tau, 255, cv2.THRESH_BINARY)
-    background = 256 - foreground
+    background = 255 - foreground
     return background
 
 """
@@ -133,7 +135,6 @@ def segment_and_recognize(plate_imgs):
             database[fname] = sift
             
     # TODO: Segment image and run NN_Sift_Classifier on each character
-    print(database)
     for image in plate_imgs:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         thresh = isodata_thresholding(gray)
@@ -143,7 +144,7 @@ def segment_and_recognize(plate_imgs):
         for x in range(thresh.shape[1]):
             col = thresh[:, x]
             try:
-                prop = np.bincount(col)[256]/len(col)
+                prop = np.bincount(col)[255]/len(col)
             except:
                 prop = 0
             if prop > 0.09 and not start:
@@ -151,9 +152,11 @@ def segment_and_recognize(plate_imgs):
                 start = True
             if prop < 0.09 and start:
                 start = False
-                if x - startIndex > 6:
+                if x - startIndex > 15:
                     imgs.append(thresh[:, startIndex:x])
         
+        plt.imshow(imgs[2], cmap='gray')
+        plt.show()
         matches = []
         for char in imgs:
             match, distance = NN_SIFT_classifier(char, database)
