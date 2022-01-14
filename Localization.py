@@ -6,6 +6,8 @@ import numpy as np
 import scipy.ndimage as ndimage
 import scipy.ndimage.filters as filters
 
+import tools.contours
+
 """
     In this file, you need to define plate_detection function.
     To do:
@@ -169,12 +171,11 @@ def morphology_close(image: np.ndarray):
 
 def edge_detection(image: np.ndarray):
     """Detects edges in the given image."""
-    std = np.std(image)
-    lower = max(np.median(image) - std, 0)
-    upper = min(lower + std / 6, 255)
+    lower = 30
+    upper = 60
     kernel_size = 5
     sigma = kernel_size // 3
-    return morphology_close(canny(image, kernel_size, sigma, lower, upper))
+    return canny(image, kernel_size, sigma, lower, upper)
 
 
 def hough_accumulator(edge_img, r_dim, theta_dim, theta_min, theta_max, r_max):
@@ -200,11 +201,11 @@ def hough_accumulator(edge_img, r_dim, theta_dim, theta_min, theta_max, r_max):
                 continue
 
             # Else loop through all possible thetas and compute the accumulator
-            step_amt = (theta_max - theta_min) / theta_dim
-            for theta_step in range(theta_dim):
-                theta = theta_min + step_amt * theta_step
+            step_amt = (theta_max - theta_min) / (theta_dim - 1)
+            for i in range(theta_dim):
+                theta = theta_min + step_amt * i
                 r = x * np.cos(theta) + y * np.sin(theta)
-                accumulator[int(r / r_max * r_dim), theta_step] += 1
+                accumulator[int(r / r_max * r_dim), i] += 1
 
     return accumulator
 
@@ -274,6 +275,14 @@ def get_lines(edge_image, theta, rho, r_dim, theta_dim, r_max, theta_max, x_max,
     return lines
 
 
+def line_slope(line):
+    """Gets the slope of a given line."""
+    if len(line) < 2:
+        return -1
+    p_start = line[0]
+    p_end = line[-1]
+    return (p_end[1] - p_start[1]) / (p_end[0] - p_start[0])
+
 # Input:
 # line1 : list - contains 2 points, the starting point at index 0 and the ending point at index 1
 # line2 : list - contains 2 points, the starting point at index 0 and the ending point at index 1
@@ -286,13 +295,13 @@ def line_intersection(line1, line2):
     p_low_2 = line2[0]
     p_high_2 = line2[-1]
 
-    # check div by 0
-    if p_high_1[0] - p_low_1[0] == 0 or p_high_2[0] - p_low_2[0] == 0:
-        return -1, -1
-
     # get slopes of both lines
-    m1 = (p_high_1[1] - p_low_1[1]) / (p_high_1[0] - p_low_1[0])
-    m2 = (p_high_2[1] - p_low_2[1]) / (p_high_2[0] - p_low_2[0])
+    m1 = line_slope(line1)
+    m2 = line_slope(line2)
+
+    # check div by 0
+    if m1 - m2 == 0:
+        return -1, -1
 
     # get intersection point x and y
     x = (p_low_2[1] - p_low_1[1] + m1 * p_low_1[0] - m2 * p_low_2[0]) / (m1 - m2)
@@ -326,7 +335,7 @@ def find_intersections(lines, x_max, y_max):
     return intersectionsX, intersectionsY
 
 
-def hough_pipeline(edge_image: np.ndarray):
+def find_license_intersections(edge_image: np.ndarray):
     """Computes the hough transform of an image.
     Input must be an edge image."""
     # Getting image dimensions
@@ -339,69 +348,87 @@ def hough_pipeline(edge_image: np.ndarray):
     theta_min = 0.0 * math.pi
 
     # Setting rho boundaries
-    r_min = 0.0
     r_max = math.hypot(x_max, y_max)
 
     # Setting step ranges- Quantization of parameter space (you can try different values here)
-    r_dim = 300
-    theta_dim = 700
+    r_dim = 200
+    theta_dim = 200
 
     # compute hough accumulator
     h_accumulator = hough_accumulator(edge_image, r_dim, theta_dim, theta_min, theta_max, r_max)
-    plt.imshow(h_accumulator, cmap='gray', origin='lower')
-    plt.show()
 
     # find interest points in the accumulator
-    neighborhood_size = 8
-    threshold = 200
+    neighborhood_size = 12
+    threshold = 20
     theta, rho = find_interest_points(h_accumulator, neighborhood_size, threshold)
-
-    # Plotting the maximas
-    plt.figure(figsize=(10,10))
-    plt.imshow(h_accumulator, origin='lower')
-    plt.plot(theta, rho, 'ro')
-    plt.xlabel(r'Theta')
-    plt.ylabel(r'rho')
-    plt.title('Hough Space')
-    plt.show()
 
     # find lines in the image
     lines = get_lines(edge_image, theta, rho, r_dim, theta_dim, r_max, theta_max, x_max, y_max)
 
-    # Plot the original image
+    # filter lines for more vertical and horizontal lines
+    lines_filtered = []
+    for line in lines:
+        if len(line) < 2:
+            continue
+        m = abs(line_slope(line))
+        if m < 0.1 or m > 5:
+            lines_filtered.append(line)
+
+    # # Plot the original image
     # Using subplots to be able to plot the lines above it
     fig, ax = plt.subplots()
     plt.figure(figsize=(20, 10))
     ax.imshow(edge_image, cmap='gray')
 
-    for line in lines:
+    for line in lines_filtered:
         ax.plot([point[0] for point in line], [point[1] for point in line], linewidth=3)
 
     # Showing the final plot with all the lines
     plt.show()
 
     # find intersections between lines
-    inter_x, inter_y = find_intersections(lines, x_max, y_max)
+    return find_intersections(lines_filtered, x_max, y_max)
 
-    # Plot the result
-    plt.figure(figsize=(10, 10))
-    plt.imshow(edge_image)
-    plt.plot(inter_x, inter_y, 'ro')
-    plt.title('Normal Space')
-    plt.show()
 
-    return h_accumulator
+def preprocess_image(image: np.ndarray):
+    """Preprocesses the input image"""
+    # Convert to HSI/HSV
+    image_hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+    # Define color range
+    color_min = np.array([16, 50, 80])
+    color_max = np.array([45, 255, 255])
+
+    # Segment only the selected color from the image and leave out all the rest (apply a mask)
+    mask = cv2.inRange(image_hsv, color_min, color_max)
+
+    # Plot the masked image (where only the selected color is visible)
+    image_masked = cv2.bitwise_and(image_hsv, image_hsv, mask=mask)
+
+    return cv2.cvtColor(image_masked, cv2.COLOR_HSV2RGB)
 
 
 def plate_detection(image: np.ndarray):
     """Performs localization on the given image"""
+    # show initial image
+    image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+    # preprocess image
+    image_processed = preprocess_image(image)
+    plt.imshow(image_processed)
+    plt.show()
+
     # detect edges on image
-    image_edges = edge_detection(image)
+    image_edges = edge_detection(image_processed)
 
     # perform hough transform on image
-    image_hough = hough_pipeline(image_edges)
+    intersections_x, intersections_y = find_license_intersections(image_edges)
 
-    plt.imshow(image_hough, cmap='gray')
+    # Plot the result
+    plt.figure(figsize=(10, 10))
+    plt.imshow(image_rgb)
+    plt.plot(intersections_x, intersections_y, 'ro')
+    plt.title('Normal Space')
     plt.show()
 
     plate_imgs = []
