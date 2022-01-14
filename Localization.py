@@ -177,7 +177,7 @@ def edge_detection(image: np.ndarray):
     return morphology_close(canny(image, kernel_size, sigma, lower, upper))
 
 
-def hough_accumulator(edge_img, r_dim, theta_dim, theta_min, theta_max, r_min, r_max):
+def hough_accumulator(edge_img, r_dim, theta_dim, theta_min, theta_max, r_max):
     """
     Input:
     img : 2D list - represents the edges of the image that we want to extract the lines from
@@ -188,19 +188,23 @@ def hough_accumulator(edge_img, r_dim, theta_dim, theta_min, theta_max, r_min, r
     # Creating the Hough Accumulator
     accumulator = np.zeros((r_dim, theta_dim))
 
+    # dimensions of edge img
+    H = edge_img.shape[0]
+    W = edge_img.shape[1]
+
     # Implement the main loop/s for caclucating the result of the accumulator
-    for x in range(r_dim):
-        for y in range(r_dim):
+    for y in range(H):
+        for x in range(W):
             # If pixel is empty, continue
-            if edge_img[x, y] == 0:
+            if edge_img[y, x] == 0:
                 continue
 
             # Else loop through all possible thetas and compute the accumulator
             step_amt = (theta_max - theta_min) / theta_dim
             for theta_step in range(theta_dim):
                 theta = theta_min + step_amt * theta_step
-                r = y * np.cos(theta) + x * np.sin(theta)
-                accumulator[int((r + r_max) / (2 * r_max) * r_dim), theta_step] += 1
+                r = x * np.cos(theta) + y * np.sin(theta)
+                accumulator[int(r / r_max * r_dim), theta_step] += 1
 
     return accumulator
 
@@ -247,24 +251,22 @@ def find_interest_points(h_accumulator, neighborhood_size, threshold):
 # rho : list - represents vertical coordinate of loacl extremas
 # Output:
 # lines : list - contains lists of points thar represent all the points a specific line traverses
-def get_lines(h_accumulator, theta, rho, r_dim, theta_dim, theta_max, theta_min, r_max):
+def get_lines(edge_image, theta, rho, r_dim, theta_dim, r_max, theta_max, x_max, y_max):
     # Array to contain all the lines
     lines = []
 
     # Iterate over you previous results and extract the lines that were chosen
     for i in range(len(theta)):
         # get rho and theta for this line
-        step_amt = (theta_max - theta_min) / theta_dim
-        t = theta_min + step_amt * theta[i]
-        r = rho[i] / r_dim * (2 * r_max) - r_max
+        t = theta[i] / theta_dim * theta_max
+        r = rho[i] / r_dim * r_max
 
         # go through each pixel
         points = []
-        for y in range(r_dim):
-            x = int((-y * np.cos(t) + r) / np.sin(t))
-            if 0 <= x < r_dim:
-                if h_accumulator[y, x] != 0:
-                    points.append([y, x])
+        for x in range(x_max):
+            y = int(-(np.cos(t) / np.sin(t)) * x + (r/np.sin(t)))
+            if 0 <= y < y_max:
+                points.append([x, y])
 
         # add to lines
         lines.append(points)
@@ -329,31 +331,42 @@ def hough_pipeline(edge_image: np.ndarray):
     Input must be an edge image."""
     # Getting image dimensions
     img_shape = edge_image.shape
-    x_max = img_shape[0]
-    y_max = img_shape[1]
+    y_max = img_shape[0]
+    x_max = img_shape[1]
 
     # Setting angle boundaries
     theta_max = 1.0 * math.pi
-    theta_min = 0 * math.pi
+    theta_min = 0.0 * math.pi
 
     # Setting rho boundaries
     r_min = 0.0
     r_max = math.hypot(x_max, y_max)
 
     # Setting step ranges- Quantization of parameter space (you can try different values here)
-    r_dim = 180
-    theta_dim = 180
+    r_dim = 300
+    theta_dim = 700
 
     # compute hough accumulator
-    h_accumulator = hough_accumulator(edge_image, r_dim, theta_dim, theta_min, theta_max, r_min, r_max)
+    h_accumulator = hough_accumulator(edge_image, r_dim, theta_dim, theta_min, theta_max, r_max)
+    plt.imshow(h_accumulator, cmap='gray', origin='lower')
+    plt.show()
 
     # find interest points in the accumulator
     neighborhood_size = 8
     threshold = 200
     theta, rho = find_interest_points(h_accumulator, neighborhood_size, threshold)
 
+    # Plotting the maximas
+    plt.figure(figsize=(10,10))
+    plt.imshow(h_accumulator, origin='lower')
+    plt.plot(theta, rho, 'ro')
+    plt.xlabel(r'Theta')
+    plt.ylabel(r'rho')
+    plt.title('Hough Space')
+    plt.show()
+
     # find lines in the image
-    lines = get_lines(h_accumulator, theta, rho, r_dim, theta_dim, theta_max, theta_min, r_max)
+    lines = get_lines(edge_image, theta, rho, r_dim, theta_dim, r_max, theta_max, x_max, y_max)
 
     # Plot the original image
     # Using subplots to be able to plot the lines above it
