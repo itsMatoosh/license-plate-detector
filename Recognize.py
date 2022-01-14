@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import os
+import scipy
 
 def sift_descriptor(image):
     result = np.zeros(0)
@@ -28,16 +29,17 @@ def sift_descriptor(image):
     assert len(result) == 128
     return np.array(result)
     
-def NN_SIFT_classifier(filename, database):
+    
+def NN_SIFT_classifier(image, database):
     classification_label=-1
     distance = {}
     #TODO: Implement the nearest neighbor classifier
     
     # TODO: Steps: 1- Read the image with the file name given in the input
-    image = cv2.imread(filename)      
+    #image = cv2.imread(filename)      
     
     # TODO: Steps: 2- Convert image to grayscale
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    #image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     
     # TODO: Steps: 3- resize the image if needed to fit the training set
     image = cv2.resize(image, (16, 16))
@@ -62,6 +64,33 @@ def NN_SIFT_classifier(filename, database):
     return min(distance, key=distance.get), distance
     
     
+def isodata_thresholding(image, epsilon = 2):
+    # Compute the histogram and set up variables
+    hist = np.array(cv2.calcHist([image], [0], None, [256], [0, 256])).flatten()
+    tau = np.random.randint(hist.nonzero()[0][0], 256 - hist[::-1].nonzero()[0][0])
+    old_tau = -2*epsilon
+    
+    # Iterations of the isodata thresholding algorithm
+    while(abs(tau - old_tau) >= epsilon):
+        #TODO Calculate m1
+        m1 = 0
+        for i in range(tau):
+            m1 += i*hist[i]
+        m1 = m1 / hist[:tau].sum()
+        #TODO Calculate m2
+        m2 = 0
+        for i in range(tau, 256):
+            m2 += i * hist[i]
+        m2 = m2 / hist[tau:].sum()
+        
+        #TODO Calculate new tau
+        old_tau = tau
+        tau = int((m1 + m2)/2)
+    
+    #TODO Threshold the image based on last tau
+    ret, foreground = cv2.threshold(image, tau, 255, cv2.THRESH_BINARY)
+    background = 256 - foreground
+    return background
 
 """
 In this file, you will define your own segment_and_recognize function.
@@ -80,6 +109,7 @@ Hints:
 """
 def segment_and_recognize(plate_imgs):
     database = {}
+    res = []
     for fname in os.listdir("data/SameSizeLetters"):
         if fname.endswith('.png') or fname.endswith('.jpg') or fname.endswith('.bmp'):
             image = cv2.imread("data/SameSizeLetters" + fname)
@@ -98,4 +128,31 @@ def segment_and_recognize(plate_imgs):
             
     # TODO: Segment image and run NN_Sift_Classifier on each character
     
-	return []
+    for image in plate_imgs:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        thresh = isodata_thresholding(gray)
+        start = False
+        startIndex = 0
+        imgs = []
+        for x in range(thresh.shape[1]):
+            col = thresh[:, x]
+            try:
+                prop = np.bincount(col)[256]/len(col)
+            except:
+                prop = 0
+            if prop > 0.09 and not start:
+                startIndex = x
+                start = True
+            if prop < 0.09 and start:
+                start = False
+                if x - startIndex > 6:
+                    imgs.append(thresh[:, startIndex:x])
+        
+        matches = []
+        for char in imgs:
+            match, distance = NN_SIFT_classifier(char, database)
+            matches.append(match[0])
+        
+        res.append(matches)
+    
+    return res
