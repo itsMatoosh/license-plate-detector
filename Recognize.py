@@ -3,63 +3,69 @@ import numpy as np
 import os
 import scipy
 
+from tools import gradient
+
+
 def sift_descriptor(image):
-    result = np.zeros(0)
-    # Resizes image to 16M * 16M where M is an integer
-    """
-    msize = np.max(image.shape)
-    fsize = (16-(msize%16)) + msize
-    fimage = cv2.resize(image, (fsize, fsize), interpolation = cv2.INTER_AREA)"""
-    windowsize = 4
-    I_y, I_x = np.gradient(image)
-    mag = np.sqrt(np.square(I_x) + np.square(I_y))
-    direction = np.arctan2(I_y, I_x)
+    result = np.zeros(128)
+    # Take only 16x16 window of the picture from the center
+
+    # get gradient magnitudes and directions
+    grad_mag, grad_dir = gradient.get_gradient(image)
+
     # Iterate over every pixel
-    for x in range(4):
-        for y in range(4):
-            submag = mag[int(x*4):int((x+1)*4), int(y*4):int((y+1)*4)].flatten()
-            subdir = direction[int(x*4):int((x+1)*4), int(y*4):int((y+1)*4)].flatten()
-            chist = np.zeros(8)
-            for index, b in enumerate(subdir):
-                subhist = np.histogram(b, bins = 8, range = (0, 2*np.pi))[0].astype(np.float64)
-                subhist[subhist == 1] += submag[index]
-                chist += subhist
-            result = np.append(result, chist)
-            
-    assert len(result) == 128
-    return np.array(result)
-    
-    
+    for y in range(16):
+        for x in range(16):
+            # Add the direction of the edge to the feature vector, scaled by its magnitude
+
+            # get cell coords
+            x_cell = x // 4
+            y_cell = y // 4
+
+            # get direction bin
+            p_dir = grad_dir[y, x]
+            dir_bin = int(p_dir / (2 * np.pi) * 8)
+
+            # get pixel magnitude
+            p_mag = grad_mag[y, x]
+
+            # add to result
+            result[y_cell * 4 * 8 + x_cell * 8 + dir_bin] += p_mag
+
+    return result
+
+
+def compare_euclidean_norm(a, b):
+    return np.linalg.norm(a - b)
+
+
 def NN_SIFT_classifier(image, database):
-    classification_label=-1
     distance = {}
-    #TODO: Implement the nearest neighbor classifier
-    
-    # TODO: Steps: 1- Read the image with the file name given in the input
-    #image = cv2.imread(filename)      
-    
-    # TODO: Steps: 2- Convert image to grayscale
-    #image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    
-    # TODO: Steps: 3- resize the image if needed to fit the training set
+    # Implement the nearest neighbor classifier
+
+    # Steps: 1- Read the image with the file name given in the input
+    # image = cv2.imread(filename)
+
+    # Steps: 2- Convert image to grayscale
+    # image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    # Steps: 3- resize the image if needed to fit the training set
     image = cv2.resize(image, (16, 16))
-    
-    # TODO: Steps: 4- find the SIFT descriptor of the test image
+
+    # Steps: 4- find the SIFT descriptor of the test image
     sift = sift_descriptor(image)
-    
-    # TODO: Steps: 5- Measure the similarity between the test image descriptor & all the database images' descriptors
-    for key in database.keys():
-        other_sift = database[key]
-        distance[key] = np.linalg.norm(sift - other_sift)
-    
-    # TODO: Steps: 6- Sort the labels based on the similarity  
-    distance = dict(sorted(distance.items(), key=lambda item: item[1]))
-   
-    # TODO: Steps: 7- print the label & the distances of the sorted list
-    # Commented this out because its a lot of clutter
-    #for key in distance.keys():
-    #    print("{} -> {}".format(key, distance[key]))
-    
+
+    # Steps: 5- Measure the similarity between the test image descriptor & all the database images' descriptors
+    for key in database:
+        distance[key] = compare_euclidean_norm(sift, database[key])
+
+    # Steps: 6- Sort the labels based on the similarity
+    distance = dict(sorted(distance.items(), key=lambda x: x[1]))
+
+    # Steps: 7- print the label & the distances of the sorted list
+    for key in distance:
+        print(key + ": " + str(distance[key]))
+
     # Return the label of the classification with the minimum distance & the disatance 
     return min(distance, key=distance.get), distance
     

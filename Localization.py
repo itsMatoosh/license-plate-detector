@@ -6,7 +6,8 @@ import numpy as np
 import scipy.ndimage as ndimage
 import scipy.ndimage.filters as filters
 
-import tools.contours
+from tools import gradient
+from tools import contours
 
 """
     In this file, you need to define plate_detection function.
@@ -23,38 +24,6 @@ import tools.contours
         1. You may need to define other functions, such as crop and adjust function
         2. You may need to define two ways for localizing plates(yellow or other colors)
 """
-
-
-def get_gradient(image):
-    """Computes the gradient magnitude and direction of an image."""
-    # Sobel gradient in x and y direction
-    sobel_kernel_y = np.array([
-        [1, 2, 1],
-        [0, 0, 0],
-        [-1, -2, -1]
-    ])
-    sobel_kernel_x = np.array([
-        [1, 0, -1],
-        [2, 0, -2],
-        [1, 0, -1]
-    ])
-
-    # get gradient in x and y directions
-    image2 = np.float64(image)
-    g_x = cv2.filter2D(image2, -1, sobel_kernel_x)
-    g_y = cv2.filter2D(image2, -1, sobel_kernel_y)
-
-    # Gradient magnitude
-
-    # compute the "g" gradient magnitude function.
-    g = np.sqrt(g_x ** 2 + g_y ** 2)
-
-    # Gradient orientation
-    # compute the "theta" gradient orientation function.
-    g_x[g_x == 0] = 0.0001
-    theta = np.arctan(g_y / g_x)
-
-    return g, theta
 
 
 def non_max_supression(gradient, direction, epsilon=0.000001):
@@ -145,7 +114,7 @@ def canny(image: np.ndarray, size, sigma, lower, upper):
     image_f = cv2.filter2D(image_grey, -1, kernel)
 
     # Gradient calculation - step 2 of Canny
-    gradient, direction = get_gradient(image_f)
+    gradient, direction = gradient.get_gradient(image_f)
 
     # Non-maximum suppression - step 3 of Canny
     gradient_thin = non_max_supression(gradient, direction)
