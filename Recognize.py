@@ -41,6 +41,9 @@ def compare_euclidean_norm(a, b):
 
 
 def NN_SIFT_classifier(image, database):
+    plt.imshow(image)
+    plt.show()
+
     # crop image to remove 0s around
     nonzero = np.argwhere(image > 200)[:, 0]
     y_start = np.min(nonzero)
@@ -55,7 +58,9 @@ def NN_SIFT_classifier(image, database):
 
     # adjust to be the same size as database picture
     canvas = np.zeros((85, 100))
-    canvas[:, 0:new_w] = image
+    if (new_w > 100):
+        new_w = 100
+    canvas[:, 0:new_w] = image[:, 0:new_w]
 
     distance = {}
     # Implement the nearest neighbor classifier
@@ -170,9 +175,7 @@ def segment_and_recognize(plate_imgs):
                 start = False
                 if x - startIndex > 15:
                     imgs.append(thresh[:, startIndex:x])
-        
-        plt.imshow(imgs[2], cmap='gray')
-        plt.show()
+
         matches = []
         for char in imgs:
             match, distance = NN_SIFT_classifier(char, database)
@@ -183,7 +186,12 @@ def segment_and_recognize(plate_imgs):
     return res
     
 
-img = cv2.imread("plate.png")
+# read all files from cropper plates folder
 images = []
-images.append(img)
-print(segment_and_recognize(images))
+for file in os.listdir('data/CroppedPlates'):
+    img = cv2.imread("data/CroppedPlates/" + str(file))
+    images.append(img)
+
+recognized = segment_and_recognize(images)
+for rec in recognized:
+    print(rec)
