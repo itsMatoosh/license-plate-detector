@@ -76,7 +76,7 @@ def find_license_contours(image: np.ndarray):
         height = rect[3]
         area = width * height
         aspect_ratio = width/height
-        if aspect_ratio > 2.3 and area > 1000:
+        if aspect_ratio > 2.4 and area > 1000:
             contours_filtered.append(cnt)
 
     return contours_filtered
@@ -93,6 +93,10 @@ def crop_license_plate(image_bgr: np.ndarray, contour_image: np.ndarray, contour
     # get plate bounding box
     bound = cv2.boundingRect(contour)
     bnd_w, bnd_h = bound[2], bound[3]
+
+    # check if anything is left
+    if bnd_w == 0 or bnd_h == 0:
+        return None
 
     # crop
     img_cropped = crop_to_bound(image_bgr, bound)
@@ -112,6 +116,10 @@ def crop_license_plate(image_bgr: np.ndarray, contour_image: np.ndarray, contour
     lines_horizontal = cv2.HoughLines(cnt_cropped, rho_max/r_dim, theta_max/theta_dim, threshold,
                            min_theta=theta_min, max_theta=theta_max)
 
+    # check if any lines found
+    if lines_horizontal is None or len(lines_horizontal) == 0:
+        return None
+
     average_t = np.average(lines_horizontal[:, :, 1])
     t_change = np.pi/2 - average_t
 
@@ -121,7 +129,11 @@ def crop_license_plate(image_bgr: np.ndarray, contour_image: np.ndarray, contour
     # crop again to minimize space around
     rotated_pp = preprocess_image(rotated)
     contours = find_license_contours(rotated_pp)
+    if len(contours) == 0:
+        return None
     bound_final = cv2.boundingRect(contours[0])
+    if bound_final[2] == 0 or bound_final[3] == 0:
+        return None
     rotated = crop_to_bound(rotated, bound_final)
     return rotated
 
@@ -165,8 +177,9 @@ def plate_detection(image: np.ndarray):
 
         # crop license plate
         plate = crop_license_plate(image, img_cnt, contours[i])
-        plate_imgs.append(plate)
-        plt.imshow(plate)
-        plt.show()
+        if plate is not None:
+            plate_imgs.append(plate)
+            plt.imshow(plate)
+            plt.show()
 
     return plate_imgs

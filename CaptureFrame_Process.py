@@ -42,7 +42,7 @@ def CaptureFrame_Process(file_path, sample_frequency, save_path):
     cv2.destroyAllWindows()
 
     # recognize localized plates
-    recognized_plates = Recognize.segment_and_recognize(localized_plates)
+    # recognized_plates = Recognize.segment_and_recognize(localized_plates)
 
     # todo: save recognized plates into csv
 
