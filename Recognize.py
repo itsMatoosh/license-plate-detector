@@ -184,14 +184,3 @@ def segment_and_recognize(plate_imgs):
         res.append(matches)
     
     return res
-    
-
-# read all files from cropper plates folder
-images = []
-for file in os.listdir('data/CroppedPlates'):
-    img = cv2.imread("data/CroppedPlates/" + str(file))
-    images.append(img)
-
-recognized = segment_and_recognize(images)
-for rec in recognized:
-    print(rec)
