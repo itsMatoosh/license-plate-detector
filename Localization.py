@@ -140,11 +140,10 @@ def morphology_close(image: np.ndarray):
 
 def edge_detection(image: np.ndarray):
     """Detects edges in the given image."""
-    lower = 30
-    upper = 60
+    lower = 140
+    upper = 190
     kernel_size = 5
-    sigma = kernel_size // 3
-    return canny(image, kernel_size, sigma, lower, upper)
+    return cv2.Canny(image, lower, upper, kernel_size)
 
 
 def hough_accumulator(edge_img, r_dim, theta_dim, theta_min, theta_max, r_max):
@@ -365,8 +364,8 @@ def preprocess_image(image: np.ndarray):
     image_hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
     # Define color range
-    color_min = np.array([16, 50, 80])
-    color_max = np.array([45, 255, 255])
+    color_min = np.array([10, 100, 90])
+    color_max = np.array([40, 255, 255])
 
     # Segment only the selected color from the image and leave out all the rest (apply a mask)
     mask = cv2.inRange(image_hsv, color_min, color_max)
@@ -389,6 +388,8 @@ def plate_detection(image: np.ndarray):
 
     # detect edges on image
     image_edges = edge_detection(image_processed)
+    plt.imshow(image_edges, cmap='gray')
+    plt.show()
 
     # perform hough transform on image
     intersections_x, intersections_y = find_license_intersections(image_edges)
