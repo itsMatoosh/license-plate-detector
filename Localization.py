@@ -142,8 +142,8 @@ def edge_detection(image: np.ndarray):
     """Detects edges in the given image."""
     lower = 140
     upper = 190
-    kernel_size = 5
-    return cv2.Canny(image, lower, upper, kernel_size)
+    image_blurred = cv2.GaussianBlur(image, (7, 7), -1)
+    return cv2.Canny(image_blurred, lower, upper)
 
 
 def hough_accumulator(edge_img, r_dim, theta_dim, theta_min, theta_max, r_max):
@@ -215,34 +215,6 @@ def find_interest_points(h_accumulator, neighborhood_size, threshold):
     return theta, rho
 
 
-# Input:
-# theta : list - represents horizontal coordinate of local extremas
-# rho : list - represents vertical coordinate of loacl extremas
-# Output:
-# lines : list - contains lists of points thar represent all the points a specific line traverses
-def get_lines(edge_image, theta, rho, r_dim, theta_dim, r_max, theta_max, x_max, y_max):
-    # Array to contain all the lines
-    lines = []
-
-    # Iterate over you previous results and extract the lines that were chosen
-    for i in range(len(theta)):
-        # get rho and theta for this line
-        t = theta[i] / theta_dim * theta_max
-        r = rho[i] / r_dim * r_max
-
-        # go through each pixel
-        points = []
-        for x in range(x_max):
-            y = int(-(np.cos(t) / np.sin(t)) * x + (r/np.sin(t)))
-            if 0 <= y < y_max:
-                points.append([x, y])
-
-        # add to lines
-        lines.append(points)
-
-    return lines
-
-
 def line_slope(line):
     """Gets the slope of a given line."""
     if len(line) < 2:
@@ -303,59 +275,102 @@ def find_intersections(lines, x_max, y_max):
     return intersectionsX, intersectionsY
 
 
-def find_license_intersections(edge_image: np.ndarray):
-    """Computes the hough transform of an image.
-    Input must be an edge image."""
-    # Getting image dimensions
-    img_shape = edge_image.shape
-    y_max = img_shape[0]
-    x_max = img_shape[1]
-
-    # Setting angle boundaries
-    theta_max = 1.0 * math.pi
-    theta_min = 0.0 * math.pi
-
-    # Setting rho boundaries
-    r_max = math.hypot(x_max, y_max)
-
-    # Setting step ranges- Quantization of parameter space (you can try different values here)
-    r_dim = 200
-    theta_dim = 200
-
-    # compute hough accumulator
-    h_accumulator = hough_accumulator(edge_image, r_dim, theta_dim, theta_min, theta_max, r_max)
-
-    # find interest points in the accumulator
-    neighborhood_size = 12
-    threshold = 20
-    theta, rho = find_interest_points(h_accumulator, neighborhood_size, threshold)
-
-    # find lines in the image
-    lines = get_lines(edge_image, theta, rho, r_dim, theta_dim, r_max, theta_max, x_max, y_max)
-
-    # filter lines for more vertical and horizontal lines
-    lines_filtered = []
-    for line in lines:
-        if len(line) < 2:
-            continue
-        m = abs(line_slope(line))
-        if m < 0.1 or m > 5:
-            lines_filtered.append(line)
-
+def plot_lines_on_image(image, lines, x_max, y_max):
+    """Plots lines on top of an image."""
     # # Plot the original image
     # Using subplots to be able to plot the lines above it
     fig, ax = plt.subplots()
     plt.figure(figsize=(20, 10))
-    ax.imshow(edge_image, cmap='gray')
+    ax.imshow(image, cmap='gray')
 
-    for line in lines_filtered:
-        ax.plot([point[0] for point in line], [point[1] for point in line], linewidth=3)
+    x_axis = np.linspace(0, x_max, num=x_max + 1)
+    for line in lines:
+        r = line[0, 0]
+        t = line[0, 1]
+        y_axis = np.minimum(np.maximum(-(np.cos(t) / np.sin(t)) * x_axis + (r / np.sin(t)), 0), y_max)
+        ax.plot(x_axis, y_axis, linewidth=1)
 
     # Showing the final plot with all the lines
     plt.show()
 
-    # find intersections between lines
-    return find_intersections(lines_filtered, x_max, y_max)
+
+def close_image(image: np.ndarray):
+    """Applies morphological closing to an image"""
+    kernel = np.array([
+        [1, 1, 1],
+        [1, 1, 1],
+        [1, 1, 1]
+    ])
+    dilated = cv2.dilate(image, kernel)
+    return cv2.erode(dilated, kernel)
+
+
+def find_license_contours(image: np.ndarray):
+    """Finds contours of a license plate in an image."""
+    # convert img to grey
+    img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # treshold image
+    treshold = 50
+    ret, img_tresh = cv2.threshold(img_gray, treshold, 255, cv2.THRESH_BINARY)
+
+    # morphological closing
+    img_processed = close_image(img_tresh)
+
+    # find all contours
+    contours, hierarchy = cv2.findContours(img_processed, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    # filter contour shape
+    contours_filtered = []
+    for cnt in contours:
+        rect = cv2.boundingRect(cnt)
+        width = rect[2]
+        height = rect[3]
+        area = width * height
+        aspect_ratio = width/height
+        if aspect_ratio > 2.3 and area > 1000:
+            contours_filtered.append(cnt)
+
+    return contours_filtered
+
+# def find_license_intersections(edge_image: np.ndarray):
+#     """Computes the hough transform of an image.
+#     Input must be an edge image."""
+#     # Getting image dimensions
+#     img_shape = edge_image.shape
+#     y_max = img_shape[0]
+#     x_max = img_shape[1]
+#
+#     # rho constraints
+#     rho_max = np.hypot(x_max, y_max)
+#
+#     # detect horizontal lines
+#     r_dim = 200
+#     theta_dim = 120
+#     theta_max = 9/16 * math.pi
+#     theta_min = 7/16 * math.pi
+#     threshold = 110
+#
+#     # find lines
+#     lines_horizontal = cv2.HoughLines(edge_image, rho_max/r_dim, theta_max/theta_dim, threshold,
+#                            min_theta=theta_min, max_theta=theta_max)
+#
+#     # plot lines
+#     plot_lines_on_image(edge_image, lines_horizontal, x_max, y_max)
+#
+#     # detect vertical lines
+#     theta_max = math.pi
+#     theta_min = 7/8 * math.pi
+#     threshold = 40
+#
+#     # find lines
+#     lines_vertical = cv2.HoughLines(edge_image, rho_max/r_dim, theta_max/theta_dim, threshold,
+#                            min_theta=theta_min, max_theta=theta_max)
+#
+#     # plot lines
+#     plot_lines_on_image(edge_image, lines_vertical, x_max, y_max)
+#
+#     # find intersections between lines
+#     return find_intersections(lines_filtered, x_max, y_max)
 
 
 def preprocess_image(image: np.ndarray):
@@ -387,8 +402,13 @@ def plate_detection(image: np.ndarray):
     plt.show()
 
     # detect edges on image
-    image_edges = edge_detection(image_processed)
-    plt.imshow(image_edges, cmap='gray')
+    # image_edges = edge_detection(image_processed)
+
+    # find contours
+    contours = find_license_contours(image_processed)
+
+    cv2.drawContours(image_rgb, contours, -1, (0,255,0), 3)
+    plt.imshow(image_rgb)
     plt.show()
 
     # perform hough transform on image
