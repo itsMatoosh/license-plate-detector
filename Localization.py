@@ -134,8 +134,7 @@ def crop_license_plate(image_bgr: np.ndarray, contour_image: np.ndarray, contour
     bound_final = cv2.boundingRect(contours[0])
     if bound_final[2] == 0 or bound_final[3] == 0:
         return None
-    rotated = crop_to_bound(rotated, bound_final)
-    return rotated
+    return crop_to_bound(rotated, bound_final)
 
 
 def preprocess_image(image: np.ndarray):

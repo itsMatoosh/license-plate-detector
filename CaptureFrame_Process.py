@@ -32,7 +32,7 @@ def CaptureFrame_Process(file_path, sample_frequency, save_path):
     i = 0
     localized_plates = []
     plate_index = []
-    plate_metadata = []
+    frame_numbers = []
     while True:
         ret, frame = vid.read()
         if ret:
@@ -42,7 +42,7 @@ def CaptureFrame_Process(file_path, sample_frequency, save_path):
                 for plate in plates:
                     localized_plates.append(plate)
                     plate_index.append(i)
-                    plate_metadata.append(frame_num)
+                    frame_numbers.append(frame_num)
                     i += 1
             frame_num += 1
         else:
@@ -56,8 +56,7 @@ def CaptureFrame_Process(file_path, sample_frequency, save_path):
     recognized_plates = Recognize.segment_and_recognize(localized_plates)
 
     # save recognized plates into csv
-    df = pd.DataFrame({'Index' : plate_index, 'Plate Number' : recognized_plates, 'Frame number' : plate_metadata})
-    df.to_csv("file.csv", index=False)
-
-
-    pass
+    seconds = np.array(frame_numbers) / fps
+    df = pd.DataFrame({'License plate': recognized_plates, 'Frame no.': frame_numbers, 'Timestamp': seconds})
+    df.to_csv("Output.csv", index=False)
+    return
