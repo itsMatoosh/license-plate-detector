@@ -8,7 +8,7 @@ import numpy
 # for more information of 'argparse' module, see https://docs.python.org/3/library/argparse.html
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--file_path', type=str, default='data/trainingsvideo.avi')
+    parser.add_argument('--file_path', type=str, default='trainingsvideo.avi')
     parser.add_argument('--output_path', type=str, default=None)
     parser.add_argument('--sample_frequency', type=float, default=2)
     args = parser.parse_args()

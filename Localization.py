@@ -179,7 +179,5 @@ def plate_detection(image: np.ndarray):
         plate = crop_license_plate(image, img_cnt, contours[i])
         if plate is not None:
             plate_imgs.append(plate)
-            plt.imshow(plate)
-            plt.show()
 
     return plate_imgs
