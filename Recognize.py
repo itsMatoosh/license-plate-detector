@@ -169,10 +169,10 @@ def segment_and_recognize(plate_imgs):
                 prop = np.bincount(col)[255]/len(col)
             except:
                 prop = 0
-            if prop > 0.09 and not start:
+            if prop > 0.1 and not start:
                 startIndex = x
                 start = True
-            if prop < 0.09 and start:
+            if prop < 0.1 and start:
                 start = False
                 if x - startIndex > reqWidth:
                     imgs.append(thresh[:, startIndex:x])
@@ -198,7 +198,7 @@ def segment_and_recognize(plate_imgs):
                     distance.pop(match)
                     match = min(distance, key=distance.get)
             else:
-                while match not in ('1', '2', '3', '4', '5', '6', '7', '8', '9', '0'):
+                while match[0] not in ('1', '2', '3', '4', '5', '6', '7', '8', '9', '0'):
                     distance.pop(match)
                     match = min(distance, key=distance.get)
             matches.append(match[0])
