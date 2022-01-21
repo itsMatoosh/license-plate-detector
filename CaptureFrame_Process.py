@@ -1,6 +1,7 @@
 import cv2
 import os
 import pandas as pd
+import numpy as np
 import Localization
 import Recognize
 
@@ -30,6 +31,7 @@ def CaptureFrame_Process(file_path, sample_frequency, save_path):
     frame_num = 0
     i = 0
     localized_plates = []
+    plate_index = []
     plate_metadata = []
     while True:
         ret, frame = vid.read()
@@ -39,7 +41,8 @@ def CaptureFrame_Process(file_path, sample_frequency, save_path):
                 plates = Localization.plate_detection(frame)
                 for plate in plates:
                     localized_plates.append(plate)
-                    plate_metadata.append([i, frame_num])
+                    plate_index.append(i)
+                    plate_metadata.append(frame_num)
                     i += 1
             frame_num += 1
         else:
@@ -53,9 +56,8 @@ def CaptureFrame_Process(file_path, sample_frequency, save_path):
     recognized_plates = Recognize.segment_and_recognize(localized_plates)
 
     # save recognized plates into csv
-    for i in range(len(recognized_plates)):
-        metadata = plate_metadata[i]
-        characters = recognized_plates[i]
+    df = pd.DataFrame({'Index' : plate_index, 'Plate Number' : recognized_plates, 'Frame number' : plate_metadata})
+    df.to_csv("file.csv", index=False)
 
 
     pass

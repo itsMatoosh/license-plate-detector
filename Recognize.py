@@ -117,24 +117,24 @@ def isodata_thresholding(image, epsilon = 2):
     old_tau = -2*epsilon
     
     # Iterations of the isodata thresholding algorithm
-    while abs(tau - old_tau) >= epsilon:
-        # Calculate m1
-        m1 = 0
-        for i in range(tau):
-            m1 += i*hist[i]
-        m1 = m1 / hist[:tau].sum()
-        # Calculate m2
-        m2 = 0
-        for i in range(tau, 256):
-            m2 += i * hist[i]
-        m2 = m2 / hist[tau:].sum()
-        
-        # Calculate new tau
-        old_tau = tau
-        if math.isnan(m1) or math.isnan(m2):
-            tau = 0
-        else:
-            tau = int((m1 + m2)/2)
+    try:
+        while abs(tau - old_tau) >= epsilon:
+            # Calculate m1
+            m1 = 0
+            for i in range(tau):
+                m1 += i*hist[i]
+            m1 = m1 / hist[:tau].sum()
+            # Calculate m2
+            m2 = 0
+            for i in range(tau, 256):
+                m2 += i * hist[i]
+            m2 = m2 / hist[tau:].sum()
+            
+            # Calculate new tau
+            old_tau = tau
+            tau = int((m1 + m2) / 2)
+    except:
+        return None
     
     # Threshold the image based on last tau
     ret, foreground = cv2.threshold(image, tau, 255, cv2.THRESH_BINARY)
@@ -208,6 +208,9 @@ def segment_and_recognize(plate_imgs):
         # treshold image
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         thresh = isodata_thresholding(gray)
+        if thresh is None:
+            res.append(None)
+            continue
 
         # segment characters
         char_imgs = segment_characters(thresh)
@@ -238,6 +241,6 @@ def segment_and_recognize(plate_imgs):
                     match = min(distance, key=distance.get)
             matches.append(match[0])
         
-        res.append(str(matches))
+        res.append(''.join([char for char in matches]))
     
     return res
