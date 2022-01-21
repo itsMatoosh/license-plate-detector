@@ -41,8 +41,6 @@ def compare_euclidean_norm(a, b):
 
 
 def NN_SIFT_classifier(image, database):
-    plt.imshow(image)
-    plt.show()
 
     # crop image to remove 0s around
     nonzero = np.argwhere(image > 200)[:, 0]
@@ -157,6 +155,7 @@ def segment_and_recognize(plate_imgs):
             
     # TODO: Segment image and run NN_Sift_Classifier on each character
     for image in plate_imgs:
+        
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         thresh = isodata_thresholding(gray)
         start = False
