@@ -173,12 +173,21 @@ def segment_and_recognize(plate_imgs):
                 start = True
             if prop < 0.09 and start:
                 start = False
-                if x - startIndex > 15:
+                if x - startIndex > 7:
                     imgs.append(thresh[:, startIndex:x])
 
         matches = []
         for char in imgs:
             match, distance = NN_SIFT_classifier(char, database)
+            if matches.count('-') == 1:
+                if matches[-1] not in ('1', '2', '3', '4', '5', '6', '7', '8', '9', '0'):
+                    while match in ('1', '2', '3', '4', '5', '6', '7', '8', '9', '0'):
+                        distance.pop(match)
+                        match = min(distance, key=distance.get)
+                else:
+                    while match not in ('1', '2', '3', '4', '5', '6', '7', '8', '9', '0'):
+                        distance.pop(match)
+                        match = min(distance, key=distance.get)
             matches.append(match[0])
         
         res.append(matches)
