@@ -1,3 +1,5 @@
+import math
+
 import cv2
 import numpy as np
 import os
@@ -41,29 +43,44 @@ def compare_euclidean_norm(a, b):
 
 
 def NN_SIFT_classifier(image, database):
-    plt.imshow(image)
-    plt.show()
+    # target dimensions
+    target_h = 85
+    target_w = 100
 
-    # crop image to remove 0s around
-    nonzero = np.argwhere(image > 200)[:, 0]
-    y_start = np.min(nonzero)
-    y_end = np.max(nonzero)
-    image = image[y_start:y_end+1]
+    # image data
+    height = image.shape[0]
+    width = image.shape[1]
+    aspect_ratio = width / height
 
-    # resize to be height 85
-    new_h = 85
-    scale = new_h / image.shape[0]
-    new_w = int(image.shape[1] * scale)
+    # find dimensions to resize
+    if aspect_ratio > 1:
+        # dash image
+        # resize to be width 50
+        new_w = target_w // 2
+        scale = new_w / width
+        new_h = int(height * scale)
+    else:
+        # digit image
+        # resize to be height 85
+        new_h = target_h
+        scale = new_h / height
+        new_w = int(width * scale)
+
+    # scale image
     image = cv2.resize(image, (new_w, new_h))
 
     # adjust to be the same size as database picture
-    canvas = np.zeros((85, 100))
-    if (new_w > 100):
-        new_w = 100
-    canvas[:, 0:new_w] = image[:, 0:new_w]
+    canvas = np.zeros((target_h, target_w))
+    if new_w > target_w:
+        new_w = target_w
+    if new_h > target_h:
+        new_w = target_h
 
-    distance = {}
+    start_y = (target_h - new_h) // 2
+    canvas[start_y:start_y + new_h, 0:new_w] = image[:, 0:new_w]
+
     # Implement the nearest neighbor classifier
+    distance = {}
 
     # Steps: 1- Read the image with the file name given in the input
     # image = cv2.imread(filename)
@@ -85,9 +102,9 @@ def NN_SIFT_classifier(image, database):
     distance = dict(sorted(distance.items(), key=lambda x: x[1]))
 
     # Steps: 7- print the label & the distances of the sorted list
-    print("new char")
-    for key in distance:
-        print(key + ": " + str(distance[key]))
+    # print("new char")
+    # for key in distance:
+    #     print(key + ": " + str(distance[key]))
 
     # Return the label of the classification with the minimum distance & the disatance 
     return min(distance, key=distance.get), distance
@@ -100,26 +117,57 @@ def isodata_thresholding(image, epsilon = 2):
     old_tau = -2*epsilon
     
     # Iterations of the isodata thresholding algorithm
-    while(abs(tau - old_tau) >= epsilon):
-        #TODO Calculate m1
+    while abs(tau - old_tau) >= epsilon:
+        # Calculate m1
         m1 = 0
         for i in range(tau):
             m1 += i*hist[i]
         m1 = m1 / hist[:tau].sum()
-        #TODO Calculate m2
+        # Calculate m2
         m2 = 0
         for i in range(tau, 256):
             m2 += i * hist[i]
         m2 = m2 / hist[tau:].sum()
         
-        #TODO Calculate new tau
+        # Calculate new tau
         old_tau = tau
-        tau = int((m1 + m2)/2)
+        if math.isnan(m1) or math.isnan(m2):
+            tau = 0
+        else:
+            tau = int((m1 + m2)/2)
     
-    #TODO Threshold the image based on last tau
+    # Threshold the image based on last tau
     ret, foreground = cv2.threshold(image, tau, 255, cv2.THRESH_BINARY)
     background = 255 - foreground
     return background
+
+
+def segment_characters(tresh_image):
+    """Segments an image which has been previously tresholded into separate characters."""
+    # find all contours
+    contours, hierarchy = cv2.findContours(tresh_image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    # filter contour shape
+    area_img = tresh_image.shape[0] * tresh_image.shape[1]
+    extracted = {}
+    for cnt in contours:
+        # get bounding rect of the contour
+        rect = cv2.boundingRect(cnt)
+        bnd_x, bnd_y, bnd_w, bnd_h = rect[0], rect[1], rect[2], rect[3]
+
+        # get area and aspect ratio of rect
+        area_rel = bnd_w * bnd_h / area_img
+
+        aspect_ratio = bnd_w / bnd_h
+        if 0.4 < aspect_ratio < 0.7 or (1.3 < aspect_ratio < 2.1 and 0.0025 < area_rel < 0.0045):
+            # crop character
+            char = tresh_image[bnd_y:bnd_y + bnd_h, bnd_x:bnd_x + bnd_w]
+            extracted[bnd_x] = char
+
+    # sort characters
+    chars_sorted = dict(sorted(extracted.items(), key=lambda x: x[0]))
+    return chars_sorted.values()
+
 
 """
 In this file, you will define your own segment_and_recognize function.
@@ -155,37 +203,24 @@ def segment_and_recognize(plate_imgs):
             sift = sift_descriptor(image)
             database[fname] = sift
             
-    # TODO: Segment image and run NN_Sift_Classifier on each character
+    # Segment image and run NN_Sift_Classifier on each character
     for image in plate_imgs:
+        # treshold image
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         thresh = isodata_thresholding(gray)
-        start = False
-        startIndex = 0
-        imgs = []
-        reqWidth = thresh.shape[1] * 0.02
-        for x in range(thresh.shape[1]):
-            col = thresh[:, x]
-            try:
-                prop = np.bincount(col)[255]/len(col)
-            except:
-                prop = 0
-            if prop > 0.1 and not start:
-                startIndex = x
-                start = True
-            if prop < 0.1 and start:
-                start = False
-                if x - startIndex > reqWidth:
-                    imgs.append(thresh[:, startIndex:x])
+
+        # segment characters
+        char_imgs = segment_characters(thresh)
 
         matches = []
         letter = None
-        for char in imgs:
+        for char in char_imgs:
             match, distance = NN_SIFT_classifier(char, database)
             if match[0] == '-':
                 letter = None
                 matches.append('-')
                 continue
-            if letter == None:
+            if letter is None:
                 if match[0] in ('1', '2', '3', '4', '5', '6', '7', '8', '9', '0'):
                     letter = False
                 else:
@@ -203,6 +238,6 @@ def segment_and_recognize(plate_imgs):
                     match = min(distance, key=distance.get)
             matches.append(match[0])
         
-        res.append(matches)
+        res.append(str(matches))
     
     return res

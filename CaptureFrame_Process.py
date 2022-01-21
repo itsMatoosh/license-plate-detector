@@ -39,10 +39,8 @@ def CaptureFrame_Process(file_path, sample_frequency, save_path):
                 plates = Localization.plate_detection(frame)
                 for plate in plates:
                     localized_plates.append(plate)
-                    plate_metadata.append([i, frame_num, ])
+                    plate_metadata.append([i, frame_num])
                     i += 1
-            else:
-                localized_plates.append([])
             frame_num += 1
         else:
             break
