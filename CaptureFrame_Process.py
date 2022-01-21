@@ -26,17 +26,24 @@ def CaptureFrame_Process(file_path, sample_frequency, save_path):
     # sample frames from the video and localize them
     fps = int(vid.get(cv2.CAP_PROP_FPS))
     sample_period = int((1 / sample_frequency) * fps)
-    i = 0
     print('Localizing license plate in video: ' + str(file_path) + ', Sampling every ' + str(sample_period) + ' frames')
+    frame_num = 0
+    i = 0
     localized_plates = []
+    plate_metadata = []
     while True:
         ret, frame = vid.read()
         if ret:
-            if (i % sample_period) == 0:
-                localized_plates.append(Localization.plate_detection(frame))
+            if (frame_num % sample_period) == 0:
+                # append plate images
+                plates = Localization.plate_detection(frame)
+                for plate in plates:
+                    localized_plates.append(plate)
+                    plate_metadata.append([i, frame_num, ])
+                    i += 1
             else:
                 localized_plates.append([])
-            i += 1
+            frame_num += 1
         else:
             break
     vid.release()
@@ -47,6 +54,10 @@ def CaptureFrame_Process(file_path, sample_frequency, save_path):
     print('Recognizing ' + str(len(localized_plates)) + ' frames with plates...')
     recognized_plates = Recognize.segment_and_recognize(localized_plates)
 
-    # todo: save recognized plates into csv
+    # save recognized plates into csv
+    for i in range(len(recognized_plates)):
+        metadata = plate_metadata[i]
+        characters = recognized_plates[i]
+
 
     pass
