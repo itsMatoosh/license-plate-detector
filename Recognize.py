@@ -159,9 +159,9 @@ def segment_characters(tresh_image):
         area_rel = bnd_w * bnd_h / area_img
 
         aspect_ratio = bnd_w / bnd_h
-        if 0.4 < aspect_ratio < 0.7 or (1.3 < aspect_ratio < 2.1 and 0.0025 < area_rel < 0.0045):
+        char = tresh_image[bnd_y:bnd_y + bnd_h, bnd_x:bnd_x + bnd_w]
+        if (0.4 < aspect_ratio < 0.7 and area_rel > 0.04) or (1.3 < aspect_ratio < 2.2 and 0.0025 < area_rel < 0.0065):
             # crop character
-            char = tresh_image[bnd_y:bnd_y + bnd_h, bnd_x:bnd_x + bnd_w]
             extracted[bnd_x] = char
 
     # sort characters
