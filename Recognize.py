@@ -202,9 +202,6 @@ def segment_and_recognize(plate_imgs):
         image = entry[0]
         frame_no = entry[1]
 
-        plt.imshow(image)
-        plt.show()
-
         # treshold image
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         thresh = isodata_thresholding(gray)
@@ -249,7 +246,7 @@ def segment_and_recognize(plate_imgs):
         # get votes for character at pos i
         plate = []
         while i in range(8):
-            votes = {'NON': 0}
+            votes = {}
             for chars in recognize_chains[c]:
                 if i < len(chars):
                     # vote for current char
@@ -257,17 +254,15 @@ def segment_and_recognize(plate_imgs):
                         votes[chars[i]] += 1
                     else:
                         votes[chars[i]] = 1
-                else:
-                    # vote for no char
-                    votes['NON'] += 1
+
+            # make sure there were any votes
+            if len(votes) == 0:
+                break
 
             # decide character
             voted_char = max(votes, key=votes.get)
 
-            # stop if NON
-            if voted_char == 'NON':
-                break
-
+            # add to result
             plate.append(voted_char)
             i += 1
         matches.append(plate)
