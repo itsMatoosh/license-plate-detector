@@ -115,7 +115,7 @@ def crop_license_plate(image_bgr: np.ndarray, contour):
     bound = cv2.boundingRect(contour)
 
     # crop
-    return crop_to_bound(image_bgr, bound, 4)
+    return crop_to_bound(image_bgr, bound, 3)
 
 
 def isolate_plate_colors(image: np.ndarray):
