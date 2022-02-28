@@ -113,16 +113,18 @@ def isodata_thresholding(image, epsilon=2):
     while abs(tau - old_tau) >= epsilon:
         # Calculate m1
         m1 = 0
-        if tau > 1:
+        hist_sum = hist[:tau].sum()
+        if hist_sum > 0:
             for i in range(tau):
                 m1 += i * hist[i]
-            m1 = m1 / hist[:tau].sum()
+            m1 = m1 / hist_sum
         # Calculate m2
         m2 = 0
-        if tau < 255:
+        hist_sum = hist[tau:].sum()
+        if hist_sum > 0:
             for i in range(tau, 256):
                 m2 += i * hist[i]
-            m2 = m2 / hist[tau:].sum()
+            m2 = m2 / hist_sum
 
         # Calculate new tau
         old_tau = tau

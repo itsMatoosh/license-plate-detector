@@ -54,6 +54,7 @@ def CaptureFrame_Process(file_path, sample_frequency, save_path):
     # recognize localized plates
     print('Recognizing ' + str(len(localized_plates)) + ' frames with plates...')
     recognized_plates = Recognize.segment_and_recognize(localized_plates)
+    print('Plates recognized')
 
     # save recognized plates into csv
     seconds = np.array(frame_numbers) / fps
