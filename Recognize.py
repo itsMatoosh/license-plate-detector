@@ -312,12 +312,12 @@ def segment_and_recognize(plate_imgs):
                 m = [votes[voted_char], i, voted_char]
         
         if m[2] in number_chars:
-            for i in range(0, dashI[0]):
+            for i in range(dashI[0] + 1, dashI[1]):
                 votes = plate[i]
                 for x in votes.keys():
                     votes.pop(x) if x not in number_chars else 0
         else:
-            for i in range(0, dashI[0]):
+            for i in range(dashI[0] + 1, dashI[1]):
                 votes = plate[i]
                 for x in votes.keys():
                     votes.pop(x) if x in number_chars else 0
@@ -331,12 +331,12 @@ def segment_and_recognize(plate_imgs):
                 m = [votes[voted_char], i, voted_char]
         
         if m[2] in number_chars:
-            for i in range(0, dashI[0]):
+            for i in range(dashI[1] + 1, 8):
                 votes = plate[i]
                 for x in votes.keys():
                     votes.pop(x) if x not in number_chars else 0
         else:
-            for i in range(0, dashI[0]):
+            for i in range(dashI[1] + 1, 8):
                 votes = plate[i]
                 for x in votes.keys():
                     votes.pop(x) if x in number_chars else 0
