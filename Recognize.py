@@ -254,17 +254,100 @@ def segment_and_recognize(plate_imgs):
                         votes[chars[i]] += 1
                     else:
                         votes[chars[i]] = 1
-
+            
             # make sure there were any votes
             if len(votes) == 0:
                 break
-
-            # decide character
+            
+            plate.append(votes)
+        
+        dashI = []
+        for i in range(2):
+            maxV = 0
+            maxI = -1
+            for index, votes in enumerate(plate):
+                if "-" in votes and votes["-"] > maxV:
+                    maxV = votes["-"]
+                    maxI = index
+            if maxI == -1:
+                if len(dashI) == 1:
+                    if dashI[0] < 4:
+                        dashI.append(dashI[0] + 3)
+                    else:
+                        dashI.append(dashI[0] - 3)
+                    plate[dashI[1]] = "-"
+                else:
+                    dashI.append(2)
+                    plate[2] = "-"
+            else:
+                dashI.append(maxI)
+                plate[maxI] = "-"
+        
+        letter0 = None
+        m = [0, -1, None]
+        for i in range(0, dashI[0]):
+            votes = plate[i]
+            votes.pop("-") if "-" in votes else 0
             voted_char = max(votes, key=votes.get)
-
-            # add to result
-            plate.append(voted_char)
-            i += 1
+            if votes[voted_char] > m[0]:
+                m = [votes[voted_char], i, voted_char]
+        
+        if m[2] in number_chars:
+            for i in range(0, dashI[0]):
+                votes = plate[i]
+                for x in votes.keys():
+                    votes.pop(x) if x not in number_chars else 0
+        else:
+            for i in range(0, dashI[0]):
+                votes = plate[i]
+                for x in votes.keys():
+                    votes.pop(x) if x in number_chars else 0
+                    
+        m = [0, -1, None]
+        for i in range(dashI[0] + 1, dashI[1]):
+            votes = plate[i]
+            votes.pop("-") if "-" in votes else 0
+            voted_char = max(votes, key=votes.get)
+            if votes[voted_char] > m[0]:
+                m = [votes[voted_char], i, voted_char]
+        
+        if m[2] in number_chars:
+            for i in range(0, dashI[0]):
+                votes = plate[i]
+                for x in votes.keys():
+                    votes.pop(x) if x not in number_chars else 0
+        else:
+            for i in range(0, dashI[0]):
+                votes = plate[i]
+                for x in votes.keys():
+                    votes.pop(x) if x in number_chars else 0
+        
+        m = [0, -1, None]
+        for i in range(dashI[1] + 1, 8):
+            votes = plate[i]
+            votes.pop("-") if "-" in votes else 0
+            voted_char = max(votes, key=votes.get)
+            if votes[voted_char] > m[0]:
+                m = [votes[voted_char], i, voted_char]
+        
+        if m[2] in number_chars:
+            for i in range(0, dashI[0]):
+                votes = plate[i]
+                for x in votes.keys():
+                    votes.pop(x) if x not in number_chars else 0
+        else:
+            for i in range(0, dashI[0]):
+                votes = plate[i]
+                for x in votes.keys():
+                    votes.pop(x) if x in number_chars else 0
+                    
+        
+        for i in range(8):
+            if i not in dashI:
+                votes = plate[i]
+                plate[i] = max(votes, key=votes.get)
+                
+        i += 1
         matches.append(plate)
 
     return matches
