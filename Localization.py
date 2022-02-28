@@ -58,15 +58,13 @@ def find_license_contours(image: np.ndarray):
     """Finds contours of a license plate in an image."""
     # convert img to grey
     img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
     # treshold image
     treshold = 50
     ret, img_tresh = cv2.threshold(img_gray, treshold, 255, cv2.THRESH_BINARY)
 
-    # morphological closing
-    img_processed = morphology_close(img_tresh)
-
     # find all contours
-    contours, hierarchy = cv2.findContours(img_processed, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contours, hierarchy = cv2.findContours(img_tresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
     # filter contour shape
     contours_filtered = []
@@ -75,69 +73,52 @@ def find_license_contours(image: np.ndarray):
         width = rect[2]
         height = rect[3]
         area = width * height
-        aspect_ratio = width/height
-        if aspect_ratio > 2.4 and area > 1000:
+        aspect_ratio = width / height
+        if aspect_ratio > 2.4 and area > 800:
             contours_filtered.append(cnt)
 
     return contours_filtered
 
 
-def crop_to_bound(image, bound):
+def crop_to_bound(image, bound, inset):
     """Crops image to a bounding box."""
+    # get dimensions
     bnd_x, bnd_y, bnd_w, bnd_h = bound[0], bound[1], bound[2], bound[3]
-    return image[bnd_y:bnd_y + bnd_h, bnd_x:bnd_x + bnd_w]
+
+    # check if anything is left
+    if bnd_w - inset <= 0 or bnd_h - inset <= 0 or bnd_x + inset >= image.shape[1] or bnd_y + inset >= image.shape[0]:
+        return None
+
+    return image[bnd_y + inset:bnd_y + bnd_h - inset, bnd_x + inset:bnd_x + bnd_w - inset]
 
 
-def crop_license_plate(image_bgr: np.ndarray, contour_image: np.ndarray, contour):
+def find_horizontal_lines(image):
+    """Detects horizontal lines in an image."""
+    # rho constraints
+    rho_max = np.hypot(image.shape[0], image.shape[1])
+
+    # detect horizontal lines
+    r_dim = 70
+    theta_dim = 50
+    theta_max = 9 / 16 * math.pi
+    theta_min = 7 / 16 * math.pi
+    threshold = 200
+
+    # find lines
+    return cv2.HoughLines(image, rho_max / r_dim, theta_max / theta_dim, threshold,
+                          min_theta=theta_min, max_theta=theta_max)
+
+
+def crop_license_plate(image_bgr: np.ndarray, contour):
     """Crops a license plate image for recognition."""
     # get plate bounding box
     bound = cv2.boundingRect(contour)
-    bnd_w, bnd_h = bound[2], bound[3]
-
-    # check if anything is left
-    if bnd_w == 0 or bnd_h == 0:
-        return None
 
     # crop
-    img_cropped = crop_to_bound(image_bgr, bound)
-    cnt_cropped = crop_to_bound(contour_image, bound)
-
-    # rho constraints
-    rho_max = np.hypot(bnd_w, bnd_h)
-
-    # detect horizontal lines
-    r_dim = 100
-    theta_dim = 50
-    theta_max = 9/16 * math.pi
-    theta_min = 7/16 * math.pi
-    threshold = 28
-
-    # find lines
-    lines_horizontal = cv2.HoughLines(cnt_cropped, rho_max/r_dim, theta_max/theta_dim, threshold,
-                           min_theta=theta_min, max_theta=theta_max)
-
-    # check if any lines found
-    if lines_horizontal is None or len(lines_horizontal) == 0:
-        return None
-
-    average_t = np.average(lines_horizontal[:, :, 1])
-    t_change = np.pi/2 - average_t
-
-    # rotate cropped image
-    rotated = imutils.rotate(img_cropped, np.degrees(-t_change))
-
-    # crop again to minimize space around
-    rotated_pp = preprocess_image(rotated)
-    contours = find_license_contours(rotated_pp)
-    if len(contours) == 0:
-        return None
-    bound_final = cv2.boundingRect(contours[0])
-    if bound_final[2] == 0 or bound_final[3] == 0:
-        return None
-    return crop_to_bound(rotated, bound_final)
+    return crop_to_bound(image_bgr, bound, 4)
 
 
-def preprocess_image(image: np.ndarray):
+def isolate_plate_colors(image: np.ndarray):
     """Preprocesses the input image"""
     # Convert to HSI/HSV
     image_hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
@@ -161,21 +142,40 @@ def contour_image(contours, id, width, height):
     return cv2.drawContours(img_cnt, contours, id, 255, 1)
 
 
+def standardize_plate_rotation(image, image_processed, treshold):
+    """Standardizes plate image rotation by finding lines in the image."""
+    # get lines in the image
+    image_edges = cv2.Canny(image_processed, 50, 200, None, 3)
+    lines = cv2.HoughLines(image_edges, 1, np.pi / 180, treshold, None, 0, 0)
+
+    # check if we got any lines
+    if lines is None or len(lines) == 0:
+        return image, image_processed
+
+    # get average rotation
+    theta_avg = np.average(lines[:, 0, 1])
+    t_change = np.pi / 2 - theta_avg
+
+    # rotate cropped image
+    return imutils.rotate(image, np.degrees(-t_change)), imutils.rotate(image_processed, np.degrees(-t_change))
+
+
 def plate_detection(image: np.ndarray):
     """Performs localization on the given image"""
-    # preprocess image
-    image_processed = preprocess_image(image)
+    # isolate license plate colors
+    image_processed = isolate_plate_colors(image)
+
+    # standardize rotation
+    image_rotated, image_processed_rotated = standardize_plate_rotation(image, image_processed, 65)
 
     # find contours
-    contours = find_license_contours(image_processed)
+    contours = find_license_contours(image_processed_rotated)
 
+    # crop plates to contours
     plate_imgs = []
     for i in range(len(contours)):
-        # find lines in contours to get rotation
-        img_cnt = contour_image(contours, i, image.shape[1], image.shape[0])
-
         # crop license plate
-        plate = crop_license_plate(image, img_cnt, contours[i])
+        plate = crop_license_plate(image_rotated, contours[i])
         if plate is not None:
             plate_imgs.append(plate)
 
