@@ -192,6 +192,16 @@ def create_sift_database():
     return sift_database
 
 
+def morph_open(image):
+    """Applies a morphological opening operation on an image"""
+    kernel = np.array([
+        [0, 1, 0],
+        [1, 1, 1],
+        [0, 1, 0]
+    ], dtype='uint8')
+    return cv2.morphologyEx(image, cv2.MORPH_OPEN, kernel)
+
+
 def segment_and_recognize(plate_imgs):
     # get sift database
     database = create_sift_database()
@@ -202,12 +212,34 @@ def segment_and_recognize(plate_imgs):
         image = entry[0]
         frame_no = entry[1]
 
+        # plot image
+        # plt.figure()
+        # plt.subplot(2, 1, 1)
+        # plt.imshow(image)
+
         # treshold image
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         thresh = isodata_thresholding(gray)
 
+        # open morphology
+        thresh = morph_open(thresh)
+
+        # plot image
+        # plt.subplot(2, 1, 2)
+        # plt.imshow(thresh)
+        # plt.show()
+
         # segment characters
         char_imgs = segment_characters(thresh)
+
+        # plot
+        # plt.figure()
+        # i = 1
+        # for char in char_imgs:
+        #     plt.subplot(1, 8, i)
+        #     plt.imshow(char)
+        #     i += 1
+        # plt.show()
 
         # match character images to symbols
         matched_chars = []
