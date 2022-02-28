@@ -213,33 +213,34 @@ def segment_and_recognize(plate_imgs):
         frame_no = entry[1]
 
         # plot image
-        # plt.figure()
-        # plt.subplot(2, 1, 1)
-        # plt.imshow(image)
+        plt.figure()
+        plt.subplot(2, 1, 1)
+        plt.imshow(image)
 
         # treshold image
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        thresh = isodata_thresholding(gray)
+        thresh = cv2.adaptiveThreshold(gray, 255,
+                                       cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 21, 4)
 
         # open morphology
         thresh = morph_open(thresh)
 
         # plot image
-        # plt.subplot(2, 1, 2)
-        # plt.imshow(thresh)
-        # plt.show()
+        plt.subplot(2, 1, 2)
+        plt.imshow(thresh)
+        plt.show()
 
         # segment characters
         char_imgs = segment_characters(thresh)
 
         # plot
-        # plt.figure()
-        # i = 1
-        # for char in char_imgs:
-        #     plt.subplot(1, 8, i)
-        #     plt.imshow(char)
-        #     i += 1
-        # plt.show()
+        plt.figure()
+        i = 1
+        for char in char_imgs:
+            plt.subplot(1, 8, i)
+            plt.imshow(char)
+            i += 1
+        plt.show()
 
         # match character images to symbols
         matched_chars = []

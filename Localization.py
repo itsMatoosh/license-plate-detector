@@ -160,13 +160,26 @@ def standardize_plate_rotation(image, image_processed, treshold):
     return imutils.rotate(image, np.degrees(-t_change)), imutils.rotate(image_processed, np.degrees(-t_change))
 
 
+def preprocess_image(image):
+    """Applies preprocessing to an image to make it easier to work with later."""
+    R, G, B = cv2.split(image)
+    r = cv2.equalizeHist(R)
+    g = cv2.equalizeHist(G)
+    b = cv2.equalizeHist(B)
+
+    return cv2.merge((r, g, b))
+
+
 def plate_detection(image: np.ndarray):
     """Performs localization on the given image"""
+    # preprocess image
+    image_preprocessed = preprocess_image(image)
+
     # isolate license plate colors
-    image_processed = isolate_plate_colors(image)
+    image_plate_isolated = isolate_plate_colors(image_preprocessed)
 
     # standardize rotation
-    image_rotated, image_processed_rotated = standardize_plate_rotation(image, image_processed, 65)
+    image_rotated, image_processed_rotated = standardize_plate_rotation(image, image_plate_isolated, 65)
 
     # find contours
     contours = find_license_contours(image_processed_rotated)
