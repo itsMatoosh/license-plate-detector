@@ -29,10 +29,7 @@ def CaptureFrame_Process(file_path, sample_frequency, save_path):
     sample_period = int((1 / sample_frequency) * fps)
     print('Localizing license plate in video: ' + str(file_path) + ', Sampling every ' + str(sample_period) + ' frames')
     frame_num = 0
-    i = 0
     localized_plates = []
-    plate_index = []
-    frame_numbers = []
     while True:
         ret, frame = vid.read()
         if ret:
@@ -40,13 +37,11 @@ def CaptureFrame_Process(file_path, sample_frequency, save_path):
                 # append plate images
                 plates = Localization.plate_detection(frame)
                 for plate in plates:
-                    localized_plates.append(plate)
-                    plate_index.append(i)
-                    frame_numbers.append(frame_num)
-                    i += 1
+                    localized_plates.append([plate, frame_num])
             frame_num += 1
         else:
             break
+    localized_plates = np.array(localized_plates)
     vid.release()
     cv2.destroyAllWindows()
     print('Plates localized')
@@ -56,8 +51,8 @@ def CaptureFrame_Process(file_path, sample_frequency, save_path):
     recognized_plates = Recognize.segment_and_recognize(localized_plates)
     print('Plates recognized')
 
-    # save recognized plates into csv
-    seconds = np.array(frame_numbers) / fps
-    df = pd.DataFrame({'License plate': recognized_plates, 'Frame no.': frame_numbers, 'Timestamp': seconds})
-    df.to_csv("Output.csv", index=False)
+    # save recognized plates into a csv
+    timestamps = localized_plates[:, 1] / fps
+    df = pd.DataFrame({'License plate': recognized_plates, 'Frame no.': localized_plates[:, 1], 'Timestamp(seconds)': timestamps})
+    df.to_csv(save_path, index=False)
     return

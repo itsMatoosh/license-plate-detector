@@ -1,12 +1,23 @@
+import math
 import os
 
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 
 from tools import gradient
 
-# cached sift database of character images
+number_chars = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']
+
+"""Cached sift database of character images"""
 sift_database = {}
+
+"""Chains of recognized plate data.
+    Used for majority voting on final plate output."""
+recognize_chains = []
+"""Information about which frame a chain started on."""
+chain_metadata = []
+
 
 def sift_descriptor(image):
     result = np.zeros(128)
@@ -41,7 +52,7 @@ def compare_euclidean_norm(a, b):
     return np.linalg.norm(a - b)
 
 
-def NN_SIFT_classifier(image, database):
+def nn_sift_classifier(image, database):
     # target dimensions
     target_h = 85
     target_w = 100
@@ -91,19 +102,15 @@ def NN_SIFT_classifier(image, database):
     for key in database:
         distance[key] = compare_euclidean_norm(sift, database[key])
 
-    # Steps: 6- Sort the labels based on the similarity
+    # sort the labels based on the similarity
     distance = dict(sorted(distance.items(), key=lambda x: x[1]))
 
-    # Steps: 7- print the label & the distances of the sorted list
-    # print("new char")
-    # for key in distance:
-    #     print(key + ": " + str(distance[key]))
-
-    # Return the label of the classification with the minimum distance & the disatance 
+    # Return the label of the classification with the minimum distance & the distance
     return min(distance, key=distance.get), distance
 
 
 def isodata_thresholding(image, epsilon=2):
+    """Perform ISODATA tresholding on a given image."""
     # Compute the histogram and set up variables
     hist = cv2.calcHist([image], [0], None, [256], [0, 256]).reshape(256)
     tau = np.random.randint(hist.nonzero()[0][0], 256 - hist[::-1].nonzero()[0][0])
@@ -165,6 +172,7 @@ def segment_characters(tresh_image):
 
 
 def create_sift_database():
+    """Create a new SIFT characters database or reuse an existing one."""
     if len(sift_database) == 0:
         for fname in os.listdir("data/SameSizeLetters"):
             if fname.endswith('.png') or fname.endswith('.jpg') or fname.endswith('.bmp'):
@@ -188,11 +196,15 @@ def segment_and_recognize(plate_imgs):
     # get sift database
     database = create_sift_database()
 
-    # result databse
-    res = []
-
     # Segment image and run NN_Sift_Classifier on each character
-    for image in plate_imgs:
+    for entry in plate_imgs:
+        # get data from localization entry
+        image = entry[0]
+        frame_no = entry[1]
+
+        plt.imshow(image)
+        plt.show()
+
         # treshold image
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         thresh = isodata_thresholding(gray)
@@ -201,33 +213,63 @@ def segment_and_recognize(plate_imgs):
         char_imgs = segment_characters(thresh)
 
         # match character images to symbols
-        matches = []
-        letter = None
+        matched_chars = []
         for char in char_imgs:
             # use sift to match image
-            match, distance = NN_SIFT_classifier(char, database)
-            if match[0] == '-':
-                letter = None
-                matches.append('-')
-                continue
-            if letter is None:
-                if match[0] in ('1', '2', '3', '4', '5', '6', '7', '8', '9', '0'):
-                    letter = False
+            match, distance = nn_sift_classifier(char, database)
+            matched_chars.append(match[0])
+
+        # compare matches with the currently active recognition chains
+        matched_chars = np.array(matched_chars)
+        best_chain = -1
+        best_chain_diff_size = math.inf
+
+        # find the chain with the lowest amount of differing characters in the last plate
+        for c in range(len(recognize_chains)):
+            last_plate = recognize_chains[c][-1]
+            set_diff = np.setdiff1d(last_plate, matched_chars)
+            set_diff_size = len(set_diff)
+            if set_diff_size < best_chain_diff_size:
+                best_chain = c
+                best_chain_diff_size = set_diff_size
+
+        # append to the found chain or start a new chain
+        if best_chain_diff_size <= 2:
+            # append to the found chain
+            recognize_chains[best_chain].append(matched_chars)
+        else:
+            # start a new chain
+            recognize_chains.append([matched_chars])
+            chain_metadata.append(frame_no)
+
+    # majority voting
+    matches = []
+    for c in range(len(recognize_chains)):
+        i = 0
+        # get votes for character at pos i
+        plate = []
+        while i in range(8):
+            votes = {'NON': 0}
+            for chars in recognize_chains[c]:
+                if i < len(chars):
+                    # vote for current char
+                    if chars[i] in votes:
+                        votes[chars[i]] += 1
+                    else:
+                        votes[chars[i]] = 1
                 else:
-                    letter = True
+                    # vote for no char
+                    votes['NON'] += 1
 
-                matches.append(match[0])
-                continue
-            if letter:
-                while match[0] in ('1', '2', '3', '4', '5', '6', '7', '8', '9', '0'):
-                    distance.pop(match)
-                    match = min(distance, key=distance.get)
-            else:
-                while match[0] not in ('1', '2', '3', '4', '5', '6', '7', '8', '9', '0'):
-                    distance.pop(match)
-                    match = min(distance, key=distance.get)
-            matches.append(match[0])
+            # decide character
+            voted_char = max(votes, key=votes.get)
 
-        res.append(''.join([char for char in matches]))
+            # stop if NON
+            if voted_char == 'NON':
+                break
 
-    return res
+            plate.append(voted_char)
+            i += 1
+        matches.append(plate)
+
+    return matches
