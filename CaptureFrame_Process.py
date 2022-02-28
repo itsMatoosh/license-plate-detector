@@ -52,7 +52,6 @@ def CaptureFrame_Process(file_path, sample_frequency, save_path):
     print('Plates recognized')
 
     # save recognized plates into a csv
-    timestamps = localized_plates[:, 1] / fps
-    df = pd.DataFrame({'License plate': recognized_plates, 'Frame no.': localized_plates[:, 1], 'Timestamp(seconds)': timestamps})
-    df.to_csv(save_path, index=False)
-    return
+    # timestamps = localized_plates[:, 1] / fps
+    # df = pd.DataFrame({'License plate': recognized_plates, 'Frame no.': localized_plates[:, 1], 'Timestamp(seconds)': timestamps})
+    # df.to_csv(save_path, index=False)

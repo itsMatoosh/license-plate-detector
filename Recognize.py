@@ -143,14 +143,12 @@ def isodata_thresholding(image, epsilon=2):
     return background
 
 
-def segment_characters(tresh_image):
-    """Segments a tresholded image into separate characters."""
-    # find all contours
-    contours, hierarchy = cv2.findContours(tresh_image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-    # filter contour shape
-    area_img = tresh_image.shape[0] * tresh_image.shape[1]
+def filter_contours(image, contours, min_aspect, max_aspect, min_area, max_area, clear=False):
+    img_out = np.copy(image)
+    area_img = image.shape[0] * image.shape[1]
     extracted = {}
+    x_start = image.shape[1]
+    x_end = 0
     for cnt in contours:
         # get bounding rect of the contour
         rect = cv2.boundingRect(cnt)
@@ -160,15 +158,52 @@ def segment_characters(tresh_image):
         area_rel = bnd_w * bnd_h / area_img
 
         aspect_ratio = bnd_w / bnd_h
-        char = tresh_image[bnd_y:bnd_y + bnd_h, bnd_x:bnd_x + bnd_w]
-        if (0.4 < aspect_ratio < 0.7 and area_rel > 0.04) \
-                or (1.3 < aspect_ratio < 2.2 and 0.0025 < area_rel < 0.0065):
+        char = image[bnd_y:bnd_y + bnd_h, bnd_x:bnd_x + bnd_w]
+        # filter just letters
+        if min_aspect < aspect_ratio < max_aspect \
+                and min_area < area_rel < max_area:
             # crop character
             extracted[bnd_x] = char
 
+            # adjust x_start and x_end
+            if bnd_x < x_start:
+                x_start = bnd_x
+            if bnd_x + bnd_w > x_end:
+                x_end = bnd_x + bnd_w
+
+            # clear image around the contour
+            if clear:
+                img_out[:, bnd_x:bnd_x + bnd_w] = 0
+
+    return extracted, img_out, x_start, x_end
+
+
+def segment_characters(tresh_image):
+    """Segments a tresholded image into separate characters."""
+    # find all contours
+    contours1, hierarchy = cv2.findContours(tresh_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    # extract letters based on contours
+    # clear image where extracted
+    extracted, tresh_img_cleared, letters_start, letters_end = filter_contours(
+        tresh_image, contours1, 0.5, 0.8, 0.04, math.inf, clear=True)
+
+    # clear parts of the img where the dashes wont be
+    clear_h = int(tresh_image.shape[0] * 0.3)
+    tresh_img_cleared[0:clear_h, :] = 0
+    tresh_img_cleared[tresh_img_cleared.shape[0] - clear_h:tresh_img_cleared.shape[0], :] = 0
+    tresh_img_cleared[:, 0:letters_start] = 0
+    tresh_img_cleared[:, letters_end:-1] = 0
+
+    # plt.imshow(tresh_img_cleared)
+    # plt.show()
+
+    # extract dashes based on contours
+    contours2, hierarchy = cv2.findContours(tresh_img_cleared, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    extracted_dashes, _, _, _ = filter_contours(tresh_img_cleared, contours2, 1.1, 2.6, 0.003, 0.013)
+
     # sort characters
-    chars_sorted = dict(sorted(extracted.items(), key=lambda x: x[0]))
-    return chars_sorted.values()
+    return dict(sorted(extracted.items(), key=lambda x: x[0])).values(), sorted(extracted_dashes.keys())
 
 
 def create_sift_database():
@@ -213,9 +248,9 @@ def segment_and_recognize(plate_imgs):
         frame_no = entry[1]
 
         # plot image
-        plt.figure()
-        plt.subplot(2, 1, 1)
-        plt.imshow(image)
+        # plt.figure()
+        # plt.subplot(2, 1, 1)
+        # plt.imshow(image)
 
         # treshold image
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -226,21 +261,21 @@ def segment_and_recognize(plate_imgs):
         thresh = morph_open(thresh)
 
         # plot image
-        plt.subplot(2, 1, 2)
-        plt.imshow(thresh)
-        plt.show()
+        # plt.subplot(2, 1, 2)
+        # plt.imshow(thresh)
+        # plt.show()
 
         # segment characters
-        char_imgs = segment_characters(thresh)
+        char_imgs, dashes = segment_characters(thresh)
 
-        # plot
-        plt.figure()
-        i = 1
-        for char in char_imgs:
-            plt.subplot(1, 8, i)
-            plt.imshow(char)
-            i += 1
-        plt.show()
+        # # plot
+        # plt.figure()
+        # i = 1
+        # for char in char_imgs:
+        #     plt.subplot(1, 8, i)
+        #     plt.imshow(char)
+        #     i += 1
+        # plt.show()
 
         # match character images to symbols
         matched_chars = []
