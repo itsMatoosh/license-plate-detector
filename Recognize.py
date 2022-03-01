@@ -10,7 +10,8 @@ from tools import gradient
 number_chars = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']
 
 """Cached sift database of character images"""
-sift_database = {}
+sift_database = np.array([])
+sift_database_labels = []
 
 """Chains of recognized plate data.
     Used for majority voting on final plate output."""
@@ -52,7 +53,7 @@ def compare_euclidean_norm(a, b):
     return np.linalg.norm(a - b)
 
 
-def nn_sift_classifier(image, database, dashes):
+def nn_sift_classifier(image, sift_db, sift_labels, dashes):
     # target dimensions
     target_h = 85
     target_w = 100
@@ -89,9 +90,6 @@ def nn_sift_classifier(image, database, dashes):
     start_y = (target_h - new_h) // 2
     canvas[start_y:start_y + new_h, 0:new_w] = image[:, 0:new_w]
 
-    # nearest neighbor classifier
-    distance = {}
-
     # resize the image if needed to fit the training set
     image = cv2.resize(canvas, (16, 16))
 
@@ -99,15 +97,20 @@ def nn_sift_classifier(image, database, dashes):
     sift = sift_descriptor(image)
 
     # measure the similarity between the test image descriptor & all the database images' descriptors
-    for key in database:
-        distance[key] = compare_euclidean_norm(sift, database[key])
+    distances = np.linalg.norm(sift[None, :] - sift_db, axis=1)
+
+    # get min distance
+    min_dist_index = np.argmin(distances)
+    min_label = sift_labels[min_dist_index]
+
+    return min_label, distances[min_dist_index]
 
     # sort the labels based on the similarity
-    distance = dict(sorted(distance.items(), key=lambda x: x[1]))
-    if dashes and "-" in distance:
-        distance.pop("-")
-    # Return the label of the classification with the minimum distance & the distance
-    return min(distance, key=distance.get), distance
+    # distance = dict(sorted(distance.items(), key=lambda x: x[1]))
+    # if dashes and "-" in distance:
+    #     distance.pop("-")
+    # # Return the label of the classification with the minimum distance & the distance
+    # return min(distance, key=distance.get), distance
 
 
 def isodata_thresholding(image, epsilon=2):
@@ -216,23 +219,25 @@ def segment_characters(tresh_image):
 
 def create_sift_database():
     """Create a new SIFT characters database or reuse an existing one."""
-    if len(sift_database) == 0:
-        for fname in os.listdir("data/SameSizeLetters"):
-            if fname.endswith('.png') or fname.endswith('.jpg') or fname.endswith('.bmp'):
-                image = cv2.imread("data/SameSizeLetters/" + fname)
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-                image = cv2.resize(image, (16, 16))
-                sift = sift_descriptor(image)
-                sift_database[fname] = sift
-
-        for fname in os.listdir("data/SameSizeNumbers"):
-            if fname.endswith('.png') or fname.endswith('.jpg') or fname.endswith('.bmp'):
-                image = cv2.imread("data/SameSizeNumbers/" + fname)
-                image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-                image = cv2.resize(image, (16, 16))
-                sift = sift_descriptor(image)
-                sift_database[fname] = sift
-    return sift_database
+    db = []
+    labels = []
+    for fname in os.listdir("data/SameSizeLetters"):
+        if fname.endswith('.png') or fname.endswith('.jpg') or fname.endswith('.bmp'):
+            image = cv2.imread("data/SameSizeLetters/" + fname)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            image = cv2.resize(image, (16, 16))
+            sift = sift_descriptor(image)
+            db.append(sift)
+            labels.append(fname)
+    for fname in os.listdir("data/SameSizeNumbers"):
+        if fname.endswith('.png') or fname.endswith('.jpg') or fname.endswith('.bmp'):
+            image = cv2.imread("data/SameSizeNumbers/" + fname)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            image = cv2.resize(image, (16, 16))
+            sift = sift_descriptor(image)
+            db.append(sift)
+            labels.append(fname)
+    return np.array(db), labels
 
 
 def morph_open(image, open):
@@ -247,7 +252,11 @@ def morph_open(image, open):
 
 def segment_and_recognize(plate_imgs):
     # get sift database
-    database = create_sift_database()
+    global sift_database, sift_database_labels
+    if len(sift_database) == 0:
+        db, labels = create_sift_database()
+        sift_database = db
+        sift_database_labels = labels
 
     # Segment image and run NN_Sift_Classifier on each character
     for entry in plate_imgs:
@@ -276,8 +285,8 @@ def segment_and_recognize(plate_imgs):
         # segment characters
         char_imgs, dashes = segment_characters(thresh)
 
-        for im in char_imgs:
-            im = morph_open(im, False)
+        # for im in char_imgs:
+        #     im = morph_open(im, False)
 
         # plot
         # plt.figure()
@@ -293,16 +302,17 @@ def segment_and_recognize(plate_imgs):
         c = None
         for char in char_imgs:
             # use sift to match image
-            match, distance = nn_sift_classifier(char, database, len(dashes) == 2)
+            match, distance = nn_sift_classifier(char, sift_database, sift_database_labels, len(dashes) == 2)
+            matched_chars.append(match[0])
             if len(matched_chars) in dashes:
                 matched_chars.append("-")
-                c = None
-            if c is None:
-                c = match[0] not in number_chars
-            while (c and match[0] in number_chars) or (not c and match[0] not in number_chars):
-                distance.pop(match)
-                match = min(distance, key=distance.get)
-            matched_chars.append(match[0])
+            #     c = None
+            # if c is None:
+            #     c = match[0] not in number_chars
+            # while (c and match[0] in number_chars) or (not c and match[0] not in number_chars):
+            #     distance.pop(match)
+            #     match = min(distance, key=distance.get)
+            # matched_chars.append(match[0])
 
         # skip entry if empty
         if len(matched_chars) == 0:
@@ -357,7 +367,7 @@ def segment_and_recognize(plate_imgs):
             # add to result
             plate.append(voted_char)
             i += 1
-        #if len(plate) == 8:
+        # if len(plate) == 8:
         matches.append("".join([c for c in plate]))
 
     return matches, chain_metadata
