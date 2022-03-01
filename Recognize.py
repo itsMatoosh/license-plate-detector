@@ -212,7 +212,7 @@ def segment_characters(tresh_image):
         dashIndexes = []
         space = []
         for sp in range(1, len(keys)):
-            space.append(keys[sp][0] - (keys[sp-1][0]+keys[sp-1][1]))
+            space.append(keys[sp][0] - (keys[sp - 1][0] + keys[sp - 1][1]))
         for index, sp in enumerate(space):
             if sp > np.mean(space) and len(dashIndexes) < 2:
                 dashIndexes.append(index + 1 + len(dashIndexes))
@@ -257,6 +257,8 @@ def chain_majority_voting(chain):
     for i in range(8):
         votes = {}
         for chars in chain:
+            # plate_text = "".join([c for c in chars])
+            # if is_plate_correct(plate_text):
             if i < len(chars):
                 # vote for current char
                 if chars[i] in votes:
@@ -274,6 +276,11 @@ def chain_majority_voting(chain):
         # add to result
         plate.append(voted_char)
     return "".join([c for c in plate])
+
+
+def is_plate_correct(plate_text):
+    regex_match = re.search("(\w{2}-\d{2}-\d{2})|(\d{2}-\d{2}-\w{2})|(\d{2}-\w{2}-\d{2})|(\w{2}-\d{2}-\w{2})|(\w{2}-\w{2}-\d{2})|(\d{2}-\w{2}-\w{2})|(\d{2}-\w{3}-\d{1})|(\d{1}-\w{3}-\d{2})|(\w{2}-\d{3}-\w{1})|(\w{1}-\d{3}-\w{2})|(\w{3}-\d{2}-\w{1})|(\d{1}-\w{2}-\d{3})", plate_text)
+    return regex_match is not None
 
 
 def segment_and_recognize(plate_imgs):
@@ -336,7 +343,7 @@ def segment_and_recognize(plate_imgs):
                 match = min(distance, key=distance.get)
 
         # skip entry if empty
-        if len(matched_chars) == 0:
+        if len(matched_chars) <= 3:
             continue
 
         # compare matches with the currently active recognition chains
@@ -371,11 +378,8 @@ def segment_and_recognize(plate_imgs):
         metadata = chain_metadata[c]
         chain = recognize_chains[c]
         match = chain_majority_voting(chain)
-        metadatas.append(metadata)
-        matches.append(match)
-        # regex_match = re.search("(\w{2}-\d{2}-\d{2})|(\d{2}-\d{2}-\w{2})|(\d{2}-\w{2}-\d{2})|(\w{2}-\d{2}-\w{2})|(\w{2}-\w{2}-\d{2})|(\d{2}-\w{2}-\w{2})|(\d{2}-\w{3}-\d{1})|(\d{1}-\w{3}-\d{2})|(\w{2}-\d{3}-\w{1})|(\w{1}-\d{3}-\w{2})|(\w{3}-\d{2}-\w{1})|(\d{1}-\w{2}-\d{3})", match)
-        # if regex_match is not None:
-        #     matches.append(match)
-        #     metadatas.append(metadata)
+        if is_plate_correct(match):
+            matches.append(match)
+            metadatas.append(metadata + 4)
 
     return matches, metadatas
