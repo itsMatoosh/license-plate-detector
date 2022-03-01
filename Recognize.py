@@ -52,7 +52,7 @@ def compare_euclidean_norm(a, b):
     return np.linalg.norm(a - b)
 
 
-def nn_sift_classifier(image, database):
+def nn_sift_classifier(image, database, dashes):
     # target dimensions
     target_h = 85
     target_w = 100
@@ -104,7 +104,8 @@ def nn_sift_classifier(image, database):
 
     # sort the labels based on the similarity
     distance = dict(sorted(distance.items(), key=lambda x: x[1]))
-
+    if dashes and "-" in distance:
+        distance.pop("-")
     # Return the label of the classification with the minimum distance & the distance
     return min(distance, key=distance.get), distance
 
@@ -210,7 +211,7 @@ def segment_characters(tresh_image):
             i += 1
         dashIndexes.append(i + len(dashIndexes))
     # sort characters
-    return sortedChars.values(), dashIndexes
+    return dict(sorted(extracted.items(), key=lambda x: x[0])).values(), dashIndexes
 
 
 def create_sift_database():
@@ -234,14 +235,14 @@ def create_sift_database():
     return sift_database
 
 
-def morph_open(image):
+def morph_open(image, open):
     """Applies a morphological opening operation on an image"""
     kernel = np.array([
         [0, 1, 0],
         [1, 1, 1],
         [0, 1, 0]
     ], dtype='uint8')
-    return cv2.morphologyEx(image, cv2.MORPH_OPEN, kernel)
+    return cv2.morphologyEx(image, cv2.MORPH_OPEN if open else cv2.MORPH_CLOSE, kernel)
 
 
 def segment_and_recognize(plate_imgs):
@@ -265,7 +266,7 @@ def segment_and_recognize(plate_imgs):
                                        cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 21, 4)
 
         # open morphology
-        thresh = morph_open(thresh)
+        thresh = morph_open(thresh, True)
 
         # plot image
         # plt.subplot(2, 1, 2)
@@ -275,6 +276,8 @@ def segment_and_recognize(plate_imgs):
         # segment characters
         char_imgs, dashes = segment_characters(thresh)
 
+        for char in char_imgs:
+            char = morph_open(char, False)
         # plot
         # plt.figure()
         # i = 1
@@ -286,12 +289,18 @@ def segment_and_recognize(plate_imgs):
 
         # match character images to symbols
         matched_chars = []
-
+        c = None
         for char in char_imgs:
             # use sift to match image
-            match, distance = nn_sift_classifier(char, database)
+            match, distance = nn_sift_classifier(char, database, len(dashes) == 2)
             if len(matched_chars) in dashes:
                 matched_chars.append("-")
+                c = None
+            if c is None:
+                c = match[0] not in number_chars
+            while (c and match[0] in number_chars) or (not c and match[0] not in number_chars):
+                distance.pop(match)
+                match = min(distance, key=distance.get)
             matched_chars.append(match[0])
 
         # compare matches with the currently active recognition chains
