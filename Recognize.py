@@ -4,6 +4,7 @@ import os
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+import re
 
 from tools import gradient
 
@@ -270,9 +271,6 @@ def segment_and_recognize(plate_imgs):
     # get sift database
     database = create_sift_database()
 
-    # output matched plates
-    matches = []
-
     # Segment image and run NN_Sift_Classifier on each character
     for entry in plate_imgs:
         # get data from localization entry
@@ -356,14 +354,19 @@ def segment_and_recognize(plate_imgs):
             recognize_chains.append([matched_chars])
             chain_metadata.append(frame_no)
 
-            # commit the oldest chain
-            if len(recognize_chains) > 5:
-                oldest_chain = recognize_chains[0]
-                matches.append(chain_majority_voting(oldest_chain))
-                del recognize_chains[0]
-
     # majority voting
+    matches = []
+    metadatas = []
     for c in range(len(recognize_chains)):
-        matches.append(chain_majority_voting(recognize_chains[c]))
+        # apply majority voting
+        metadata = chain_metadata[c]
+        chain = recognize_chains[c]
+        match = chain_majority_voting(chain)
+        metadatas.append(metadata)
+        matches.append(match)
+        # regex_match = re.search("(\w{2}-\d{2}-\d{2})|(\d{2}-\d{2}-\w{2})|(\d{2}-\w{2}-\d{2})|(\w{2}-\d{2}-\w{2})|(\w{2}-\w{2}-\d{2})|(\d{2}-\w{2}-\w{2})|(\d{2}-\w{3}-\d{1})|(\d{1}-\w{3}-\d{2})|(\w{2}-\d{3}-\w{1})|(\w{1}-\d{3}-\w{2})|(\w{3}-\d{2}-\w{1})|(\d{1}-\w{2}-\d{3})", match)
+        # if regex_match is not None:
+        #     matches.append(match)
+        #     metadatas.append(metadata)
 
-    return matches, chain_metadata
+    return matches, metadatas
