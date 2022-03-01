@@ -211,7 +211,7 @@ def segment_characters(tresh_image):
             i += 1
         dashIndexes.append(i + len(dashIndexes))
     # sort characters
-    return dict(sorted(extracted.items(), key=lambda x: x[0])).values(), dashIndexes
+    return sortedChars.values(), dashIndexes
 
 
 def create_sift_database():
@@ -303,6 +303,10 @@ def segment_and_recognize(plate_imgs):
                 distance.pop(match)
                 match = min(distance, key=distance.get)
             matched_chars.append(match[0])
+
+        # skip entry if empty
+        if len(matched_chars) == 0:
+            continue
 
         # compare matches with the currently active recognition chains
         matched_chars = np.array(matched_chars)

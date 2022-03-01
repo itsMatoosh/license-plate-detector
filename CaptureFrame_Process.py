@@ -53,7 +53,6 @@ def CaptureFrame_Process(file_path, sample_frequency, save_path):
 
     # save recognized plates into a csv
     timestamps = np.array(frames) / fps
-    plates = []
     print(len(timestamps))
     print(len(recognized_plates))
     df = pd.DataFrame({'License plate': recognized_plates, 'Frame no.': frames, 'Timestamp(seconds)': timestamps})
