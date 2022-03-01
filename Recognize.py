@@ -52,7 +52,7 @@ def compare_euclidean_norm(a, b):
     return np.linalg.norm(a - b)
 
 
-def nn_sift_classifier(image, database, dashes):
+def nn_sift_classifier(image, database):
     # target dimensions
     target_h = 85
     target_w = 100
@@ -104,8 +104,6 @@ def nn_sift_classifier(image, database, dashes):
 
     # sort the labels based on the similarity
     distance = dict(sorted(distance.items(), key=lambda x: x[1]))
-    if dashes and "-" in distance:
-        distance.pop("-")
     # Return the label of the classification with the minimum distance & the distance
     return min(distance, key=distance.get), distance
 
@@ -196,22 +194,19 @@ def segment_characters(tresh_image):
     tresh_img_cleared[:, 0:letters_start] = 0
     tresh_img_cleared[:, letters_end:-1] = 0
 
-    # plt.imshow(tresh_img_cleared)
-    # plt.show()
-
     # extract dashes based on contours
     contours2, hierarchy = cv2.findContours(tresh_img_cleared, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     extracted_dashes, _, _, _ = filter_contours(tresh_img_cleared, contours2, 1.1, 2.6, 0.003, 0.013)
 
+    # get the indices of dashes within the string
     sortedChars = dict(sorted(extracted.items(), key=lambda x: x[0]))
     dashIndexes = []
-    for d in sorted(list(extracted_dashes.keys())):
+    for d_x in sorted(list(extracted_dashes.keys())):
         i = 0
-        while d > list(sortedChars.keys())[i]:
+        while d_x > list(sortedChars.keys())[i]:
             i += 1
         dashIndexes.append(i + len(dashIndexes))
-    # sort characters
-    return sortedChars.values(), dashIndexes
+    return sortedChars.values(), list(dict.fromkeys(dashIndexes))
 
 
 def create_sift_database():
@@ -245,9 +240,38 @@ def morph_open(image, open):
     return cv2.morphologyEx(image, cv2.MORPH_OPEN if open else cv2.MORPH_CLOSE, kernel)
 
 
+def chain_majority_voting(chain):
+    """Conducts majority voting within a chain and returns the most likely plate for that chain."""
+    # get votes for character at pos i
+    plate = []
+    for i in range(8):
+        votes = {}
+        for chars in chain:
+            if i < len(chars):
+                # vote for current char
+                if chars[i] in votes:
+                    votes[chars[i]] += 1
+                else:
+                    votes[chars[i]] = 1
+
+        # make sure there were any votes
+        if len(votes) == 0:
+            break
+
+        # decide character
+        voted_char = max(votes, key=votes.get)
+
+        # add to result
+        plate.append(voted_char)
+    return "".join([c for c in plate])
+
+
 def segment_and_recognize(plate_imgs):
     # get sift database
     database = create_sift_database()
+
+    # output matched plates
+    matches = []
 
     # Segment image and run NN_Sift_Classifier on each character
     for entry in plate_imgs:
@@ -260,13 +284,14 @@ def segment_and_recognize(plate_imgs):
         # plt.subplot(2, 1, 1)
         # plt.imshow(image)
 
+        # check for empty image
+        if image is None or image.shape[0] == 0 or image.shape[1] == 0:
+            continue
+
         # treshold image
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         thresh = cv2.adaptiveThreshold(gray, 255,
                                        cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 21, 4)
-
-        # open morphology
-        thresh = morph_open(thresh, True)
 
         # plot image
         # plt.subplot(2, 1, 2)
@@ -275,9 +300,6 @@ def segment_and_recognize(plate_imgs):
 
         # segment characters
         char_imgs, dashes = segment_characters(thresh)
-
-        for im in char_imgs:
-            im = morph_open(im, False)
 
         # plot
         # plt.figure()
@@ -293,7 +315,10 @@ def segment_and_recognize(plate_imgs):
         c = None
         for char in char_imgs:
             # use sift to match image
-            match, distance = nn_sift_classifier(char, database, len(dashes) == 2)
+            match, distance = nn_sift_classifier(char, database)
+            matched_chars.append(match[0])
+
+            # check if there is a dash here
             if len(matched_chars) in dashes:
                 matched_chars.append("-")
                 c = None
@@ -302,7 +327,6 @@ def segment_and_recognize(plate_imgs):
             while (c and match[0] in number_chars) or (not c and match[0] not in number_chars):
                 distance.pop(match)
                 match = min(distance, key=distance.get)
-            matched_chars.append(match[0])
 
         # skip entry if empty
         if len(matched_chars) == 0:
@@ -324,7 +348,7 @@ def segment_and_recognize(plate_imgs):
                 best_chain_diff_size = chain_diff
 
         # append to the found chain or start a new chain
-        if best_chain != -1 and best_chain_diff_size / len(recognize_chains[best_chain]) <= 1.5:
+        if best_chain != -1 and best_chain_diff_size / len(recognize_chains[best_chain]) <= 2:
             # append to the found chain
             recognize_chains[best_chain].append(matched_chars)
         else:
@@ -332,33 +356,14 @@ def segment_and_recognize(plate_imgs):
             recognize_chains.append([matched_chars])
             chain_metadata.append(frame_no)
 
+            # commit the oldest chain
+            if len(recognize_chains) > 5:
+                oldest_chain = recognize_chains[0]
+                matches.append(chain_majority_voting(oldest_chain))
+                del recognize_chains[0]
+
     # majority voting
-    matches = []
     for c in range(len(recognize_chains)):
-        i = 0
-        # get votes for character at pos i
-        plate = []
-        while i in range(8):
-            votes = {}
-            for chars in recognize_chains[c]:
-                if i < len(chars):
-                    # vote for current char
-                    if chars[i] in votes:
-                        votes[chars[i]] += 1
-                    else:
-                        votes[chars[i]] = 1
-
-            # make sure there were any votes
-            if len(votes) == 0:
-                break
-
-            # decide character
-            voted_char = max(votes, key=votes.get)
-
-            # add to result
-            plate.append(voted_char)
-            i += 1
-        #if len(plate) == 8:
-        matches.append("".join([c for c in plate]))
+        matches.append(chain_majority_voting(recognize_chains[c]))
 
     return matches, chain_metadata
