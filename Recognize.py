@@ -202,8 +202,15 @@ def segment_characters(tresh_image):
     contours2, hierarchy = cv2.findContours(tresh_img_cleared, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     extracted_dashes, _, _, _ = filter_contours(tresh_img_cleared, contours2, 1.1, 2.6, 0.003, 0.013)
 
+    sortedChars = dict(sorted(extracted.items(), key=lambda x: x[0]))
+    dashIndexes = []
+    for d in sorted(list(extracted_dashes.keys())):
+        i = 0
+        while d > list(sortedChars.keys())[i]:
+            i += 1
+        dashIndexes.append(i + len(dashIndexes))
     # sort characters
-    return dict(sorted(extracted.items(), key=lambda x: x[0])).values(), sorted(extracted_dashes.keys())
+    return sortedChars.values(), dashIndexes
 
 
 def create_sift_database():
@@ -268,7 +275,7 @@ def segment_and_recognize(plate_imgs):
         # segment characters
         char_imgs, dashes = segment_characters(thresh)
 
-        # # plot
+        # plot
         # plt.figure()
         # i = 1
         # for char in char_imgs:
@@ -279,9 +286,12 @@ def segment_and_recognize(plate_imgs):
 
         # match character images to symbols
         matched_chars = []
+
         for char in char_imgs:
             # use sift to match image
             match, distance = nn_sift_classifier(char, database)
+            if len(matched_chars) in dashes:
+                matched_chars.append("-")
             matched_chars.append(match[0])
 
         # compare matches with the currently active recognition chains
