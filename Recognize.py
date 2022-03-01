@@ -245,7 +245,7 @@ def segment_and_recognize(plate_imgs):
         i = 0
         # get votes for character at pos i
         plate = []
-        while i in range(8):
+        for i in range(8):
             votes = {}
             for chars in recognize_chains[c]:
                 if i < len(chars):
@@ -260,13 +260,13 @@ def segment_and_recognize(plate_imgs):
                 break
             
             plate.append(votes)
-        
+
         dashI = []
         for i in range(2):
             maxV = 0
             maxI = -1
             for index, votes in enumerate(plate):
-                if "-" in votes and votes["-"] > maxV:
+                if index not in dashI and "-" in votes and votes["-"] > maxV:
                     maxV = votes["-"]
                     maxI = index
             if maxI == -1:
@@ -282,8 +282,8 @@ def segment_and_recognize(plate_imgs):
             else:
                 dashI.append(maxI)
                 plate[maxI] = "-"
-        
-        letter0 = None
+
+        dashI = sorted(dashI)
         m = [0, -1, None]
         for i in range(0, dashI[0]):
             votes = plate[i]
@@ -295,12 +295,12 @@ def segment_and_recognize(plate_imgs):
         if m[2] in number_chars:
             for i in range(0, dashI[0]):
                 votes = plate[i]
-                for x in votes.keys():
+                for x in votes.copy().keys():
                     votes.pop(x) if x not in number_chars else 0
         else:
             for i in range(0, dashI[0]):
                 votes = plate[i]
-                for x in votes.keys():
+                for x in votes.copy().keys():
                     votes.pop(x) if x in number_chars else 0
                     
         m = [0, -1, None]
@@ -314,12 +314,12 @@ def segment_and_recognize(plate_imgs):
         if m[2] in number_chars:
             for i in range(dashI[0] + 1, dashI[1]):
                 votes = plate[i]
-                for x in votes.keys():
+                for x in votes.copy().keys():
                     votes.pop(x) if x not in number_chars else 0
         else:
             for i in range(dashI[0] + 1, dashI[1]):
                 votes = plate[i]
-                for x in votes.keys():
+                for x in votes.copy().keys():
                     votes.pop(x) if x in number_chars else 0
         
         m = [0, -1, None]
@@ -333,19 +333,19 @@ def segment_and_recognize(plate_imgs):
         if m[2] in number_chars:
             for i in range(dashI[1] + 1, 8):
                 votes = plate[i]
-                for x in votes.keys():
+                for x in votes.copy().keys():
                     votes.pop(x) if x not in number_chars else 0
         else:
             for i in range(dashI[1] + 1, 8):
                 votes = plate[i]
-                for x in votes.keys():
+                for x in votes.copy().keys():
                     votes.pop(x) if x in number_chars else 0
                     
         
         for i in range(8):
             if i not in dashI:
                 votes = plate[i]
-                plate[i] = max(votes, key=votes.get)
+                plate[i] = max(votes, key=votes.get) if len(votes.keys()) != 0 else " "
                 
         i += 1
         matches.append(plate)
