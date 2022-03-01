@@ -179,7 +179,7 @@ def plate_detection(image: np.ndarray):
     image_plate_isolated = isolate_plate_colors(image_preprocessed)
 
     # standardize rotation
-    image_rotated, image_processed_rotated = standardize_plate_rotation(image, image_plate_isolated, 65)
+    image_rotated, image_processed_rotated = standardize_plate_rotation(image, image_plate_isolated, 73)
 
     # find contours
     contours = find_license_contours(image_processed_rotated)
