@@ -287,6 +287,10 @@ def segment_and_recognize(plate_imgs):
     # get sift database
     database = create_sift_database()
 
+    # result data
+    matches = []
+    metadatas = []
+
     # Segment image and run NN_Sift_Classifier on each character
     for entry in plate_imgs:
         # get data from localization entry
@@ -326,7 +330,7 @@ def segment_and_recognize(plate_imgs):
 
         # match character images to symbols
         matched_chars = []
-        c = None
+        # curr_is_char = None
         for char in char_imgs:
             # use sift to match image
             match, distance = nn_sift_classifier(char, database)
@@ -335,12 +339,12 @@ def segment_and_recognize(plate_imgs):
             # check if there is a dash here
             if len(matched_chars) in dashes:
                 matched_chars.append("-")
-                c = None
-            if c is None:
-                c = match[0] not in number_chars
-            while (c and match[0] in number_chars) or (not c and match[0] not in number_chars):
-                distance.pop(match)
-                match = min(distance, key=distance.get)
+                # curr_is_char = None
+            # if curr_is_char is None:
+            #     curr_is_char = match[0] not in number_chars
+            # while (curr_is_char and match[0] in number_chars) or (not curr_is_char and match[0] not in number_chars):
+            #     distance.pop(match)
+            #     match = min(distance, key=distance.get)
 
         # skip entry if empty
         if len(matched_chars) <= 3:
@@ -370,9 +374,18 @@ def segment_and_recognize(plate_imgs):
             recognize_chains.append([matched_chars])
             chain_metadata.append(frame_no)
 
+            # remove old chain
+            # if len(recognize_chains) > 4:
+            #     oldest_chain = recognize_chains[0]
+            #     metadata = chain_metadata[0]
+            #     match = chain_majority_voting(oldest_chain)
+            #     if is_plate_correct(match):
+            #         matches.append(chain_majority_voting(oldest_chain))
+            #         metadatas.append(metadata)
+            #     del recognize_chains[0]
+            #     del chain_metadata[0]
+
     # majority voting
-    matches = []
-    metadatas = []
     for c in range(len(recognize_chains)):
         # apply majority voting
         metadata = chain_metadata[c]
