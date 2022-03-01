@@ -163,7 +163,7 @@ def filter_contours(image, contours, min_aspect, max_aspect, min_area, max_area,
         if min_aspect < aspect_ratio < max_aspect \
                 and min_area < area_rel < max_area:
             # crop character
-            extracted[bnd_x] = char
+            extracted[(bnd_x, bnd_w)] = char
 
             # adjust x_start and x_end
             if bnd_x < x_start:
@@ -200,13 +200,22 @@ def segment_characters(tresh_image):
     extracted_dashes, _, _, _ = filter_contours(tresh_img_cleared, contours2, 1.1, 2.6, 0.003, 0.013)
 
     # get the indices of dashes within the string
-    sortedChars = dict(sorted(extracted.items(), key=lambda x: x[0]))
+    sortedChars = dict(sorted(extracted.items(), key=lambda x: x[0][0]))
     dashIndexes = []
+    keys = list(sortedChars.keys())
     for d_x in sorted(list(extracted_dashes.keys())):
         i = 0
-        while d_x > list(sortedChars.keys())[i]:
+        while d_x[0] > keys[i][0]:
             i += 1
         dashIndexes.append(i + len(dashIndexes))
+    if len(dashIndexes) != 2:
+        dashIndexes = []
+        space = []
+        for sp in range(1, len(keys)):
+            space.append(keys[sp][0] - (keys[sp-1][0]+keys[sp-1][1]))
+        for index, sp in enumerate(space):
+            if sp > np.mean(space) and len(dashIndexes) < 2:
+                dashIndexes.append(index + 1 + len(dashIndexes))
     return sortedChars.values(), list(dict.fromkeys(dashIndexes))
 
 
