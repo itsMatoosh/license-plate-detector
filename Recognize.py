@@ -371,11 +371,11 @@ def segment_and_recognize(plate_imgs):
         metadata = chain_metadata[c]
         chain = recognize_chains[c]
         match = chain_majority_voting(chain)
-        metadatas.append(metadata)
-        matches.append(match)
-        # regex_match = re.search("(\w{2}-\d{2}-\d{2})|(\d{2}-\d{2}-\w{2})|(\d{2}-\w{2}-\d{2})|(\w{2}-\d{2}-\w{2})|(\w{2}-\w{2}-\d{2})|(\d{2}-\w{2}-\w{2})|(\d{2}-\w{3}-\d{1})|(\d{1}-\w{3}-\d{2})|(\w{2}-\d{3}-\w{1})|(\w{1}-\d{3}-\w{2})|(\w{3}-\d{2}-\w{1})|(\d{1}-\w{2}-\d{3})", match)
-        # if regex_match is not None:
-        #     matches.append(match)
-        #     metadatas.append(metadata)
+        # metadatas.append(metadata)
+        # matches.append(match)
+        regex_match = re.search("(\w{2}-\d{2}-\d{2})|(\d{2}-\d{2}-\w{2})|(\d{2}-\w{2}-\d{2})|(\w{2}-\d{2}-\w{2})|(\w{2}-\w{2}-\d{2})|(\d{2}-\w{2}-\w{2})|(\d{2}-\w{3}-\d{1})|(\d{1}-\w{3}-\d{2})|(\w{2}-\d{3}-\w{1})|(\w{1}-\d{3}-\w{2})|(\w{3}-\d{2}-\w{1})|(\d{1}-\w{2}-\d{3})", match)
+        if regex_match is not None:
+            matches.append(match)
+            metadatas.append(metadata)
 
     return matches, metadatas
