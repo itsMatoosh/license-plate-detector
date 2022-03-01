@@ -315,15 +315,16 @@ def segment_and_recognize(plate_imgs):
 
         # find the chain with the lowest amount of differing characters in the last plate
         for c in range(len(recognize_chains)):
-            last_plate = recognize_chains[c][-1]
-            set_diff = np.setdiff1d(last_plate, matched_chars)
-            set_diff_size = len(set_diff)
-            if set_diff_size < best_chain_diff_size:
+            chain_diff = 0
+            for plate in recognize_chains[c]:
+                set_diff = np.setdiff1d(plate, matched_chars)
+                chain_diff += len(set_diff)
+            if chain_diff < best_chain_diff_size:
                 best_chain = c
-                best_chain_diff_size = set_diff_size
+                best_chain_diff_size = chain_diff
 
         # append to the found chain or start a new chain
-        if best_chain_diff_size <= 2:
+        if best_chain != -1 and best_chain_diff_size / len(recognize_chains[best_chain]) <= 1.5:
             # append to the found chain
             recognize_chains[best_chain].append(matched_chars)
         else:
