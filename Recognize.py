@@ -276,8 +276,9 @@ def segment_and_recognize(plate_imgs):
         # segment characters
         char_imgs, dashes = segment_characters(thresh)
 
-        for char in char_imgs:
-            char = morph_open(char, False)
+        for im in char_imgs:
+            im = morph_open(im, False)
+
         # plot
         # plt.figure()
         # i = 1
@@ -352,6 +353,7 @@ def segment_and_recognize(plate_imgs):
             # add to result
             plate.append(voted_char)
             i += 1
-        matches.append(plate)
+        #if len(plate) == 8:
+        matches.append("".join([c for c in plate]))
 
-    return matches
+    return matches, chain_metadata

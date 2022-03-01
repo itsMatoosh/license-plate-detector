@@ -48,10 +48,13 @@ def CaptureFrame_Process(file_path, sample_frequency, save_path):
 
     # recognize localized plates
     print('Recognizing ' + str(len(localized_plates)) + ' frames with plates...')
-    recognized_plates = Recognize.segment_and_recognize(localized_plates)
+    recognized_plates, frames = Recognize.segment_and_recognize(localized_plates)
     print('Plates recognized')
 
     # save recognized plates into a csv
-    # timestamps = localized_plates[:, 1] / fps
-    # df = pd.DataFrame({'License plate': recognized_plates, 'Frame no.': localized_plates[:, 1], 'Timestamp(seconds)': timestamps})
-    # df.to_csv(save_path, index=False)
+    timestamps = np.array(frames) / fps
+    plates = []
+    print(len(timestamps))
+    print(len(recognized_plates))
+    df = pd.DataFrame({'License plate': recognized_plates, 'Frame no.': frames, 'Timestamp(seconds)': timestamps})
+    df.to_csv("Output.csv", index=False)
